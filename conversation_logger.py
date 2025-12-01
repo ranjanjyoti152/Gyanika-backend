@@ -31,6 +31,14 @@ def log_conversation_turn(user_message: str, assistant_response: str):
     user_id = _current_conversation.get("user_id", "unknown_user")
     session_id = _current_conversation.get("session_id", "unknown_session")
     
+    logging.info("=" * 60)
+    logging.info("📝 SAVING CONVERSATION TURN")
+    logging.info(f"   User ID: {user_id}")
+    logging.info(f"   Session ID: {session_id}")
+    logging.info(f"   User Message: {user_message[:100] if user_message else 'None'}...")
+    logging.info(f"   Assistant Response: {assistant_response[:100] if assistant_response else 'None'}...")
+    logging.info("=" * 60)
+    
     if not user_message or not assistant_response:
         logging.warning("⚠️  Incomplete conversation turn - skipping save")
         return False
@@ -57,11 +65,12 @@ def log_conversation_turn(user_message: str, assistant_response: str):
         else:
             logging.error(f"❌ Failed to save conversation to Qdrant")
     except Exception as e:
-        logging.error(f"❌ Error saving conversation to Qdrant: {e}")
+        logging.error(f"❌ Error saving conversation to Qdrant: {e}", exc_info=True)
     
     # Save to LightRAG for knowledge graph
     try:
         lightrag = get_lightrag_store()
+        logging.info(f"📤 Attempting to save to LightRAG at {lightrag.url}...")
         success_lightrag = lightrag.add_conversation(
             user_id=user_id,
             session_id=session_id,
@@ -78,8 +87,9 @@ def log_conversation_turn(user_message: str, assistant_response: str):
         else:
             logging.warning(f"⚠️ Failed to save conversation to LightRAG (server may be unavailable)")
     except Exception as e:
-        logging.warning(f"⚠️ LightRAG save skipped: {e}")
+        logging.warning(f"⚠️ LightRAG save skipped: {e}", exc_info=True)
     
+    logging.info(f"💾 Save results - Qdrant: {success_qdrant}, LightRAG: {success_lightrag}")
     return success_qdrant or success_lightrag
 
 def get_conversation_history(query: str, user_id: Optional[str] = None, limit: int = 5):

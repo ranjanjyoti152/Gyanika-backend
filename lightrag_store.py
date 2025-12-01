@@ -110,6 +110,8 @@ METADATA:
                 metadata=metadata
             )
             
+            logging.info(f"📄 LightRAG document prepared ({len(document)} chars)")
+            
             # LightRAG API endpoint for text insertion
             endpoint = f"{self.url}/documents/text"
             
@@ -118,6 +120,8 @@ METADATA:
                 "description": f"Conversation between user {user_id} and Gyanika AI"
             }
             
+            logging.info(f"📤 Sending to LightRAG: {endpoint}")
+            
             response = requests.post(
                 endpoint,
                 headers=self._get_headers(),
@@ -125,8 +129,12 @@ METADATA:
                 timeout=self.timeout
             )
             
+            logging.info(f"📥 LightRAG response: {response.status_code}")
+            
             if response.status_code in [200, 201, 202]:
+                result = response.json() if response.text else {}
                 logging.info(f"✅ Conversation saved to LightRAG for user {user_id}")
+                logging.info(f"   Response: {result}")
                 return True
             else:
                 logging.error(f"❌ LightRAG insert failed: {response.status_code} - {response.text}")
@@ -135,8 +143,11 @@ METADATA:
         except requests.exceptions.ConnectionError as e:
             logging.warning(f"⚠️ LightRAG connection failed (server may be down): {e}")
             return False
+        except requests.exceptions.Timeout as e:
+            logging.warning(f"⚠️ LightRAG request timeout: {e}")
+            return False
         except Exception as e:
-            logging.error(f"❌ Error storing conversation in LightRAG: {e}")
+            logging.error(f"❌ Error storing conversation in LightRAG: {e}", exc_info=True)
             return False
     
     def add_text(self, text: str, description: str = "") -> bool:
@@ -308,8 +319,23 @@ def get_lightrag_store() -> LightRAGStore:
     """Get or create global LightRAG store instance"""
     global _lightrag_store
     if _lightrag_store is None:
+        # Ensure dotenv is loaded
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        url = os.getenv("LIGHTRAG_URL", "http://localhost:9621")
+        api_key = os.getenv("LIGHTRAG_API_KEY", "")
+        
+        logging.info(f"Creating LightRAG store with URL: {url}")
+        
         _lightrag_store = LightRAGStore(
-            url=os.getenv("LIGHTRAG_URL", "http://localhost:9621"),
-            api_key=os.getenv("LIGHTRAG_API_KEY", "")
+            url=url,
+            api_key=api_key
         )
     return _lightrag_store
+
+
+def reset_lightrag_store():
+    """Reset the global LightRAG store (useful for testing or reconfiguration)"""
+    global _lightrag_store
+    _lightrag_store = None

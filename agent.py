@@ -86,50 +86,97 @@ async def entrypoint(ctx: agents.JobContext):
     # Create assistant
     assistant = Assistant()
     
-    # Hook into the session to capture conversations
-    # We'll use the room's data channel to listen for transcription events
-    @ctx.room.on("data_received")
-    def on_data_received(data_packet):
-        """Capture transcription data from the room"""
+    # Subscribe to user transcription events
+    @session.on("user_input_transcribed")
+    def on_user_transcribed(event: agents.UserInputTranscribedEvent):
+        """Capture user speech transcription"""
         nonlocal intro_sent
-        try:
-            import json
-            data = json.loads(data_packet.data.decode('utf-8'))
+        if event.is_final and event.transcript:
+            conversation_context["user_msg"] = event.transcript
+            logging.info(f"👤 User: {event.transcript[:100]}...")
             
-            # Check if this is a transcription message
-            if data.get("type") == "transcription":
-                text = data.get("text", "")
-                participant = data.get("participant_identity", "")
-                is_final = data.get("is_final", False)
+            # Generate intro on first interaction
+            if not intro_sent:
+                asyncio.create_task(
+                    session.generate_reply(
+                        instructions=SESSION_INSTRUCTION,
+                    )
+                )
+                intro_sent = True
+    
+    # Subscribe to conversation item events (captures agent responses)
+    @session.on("conversation_item_added")
+    def on_conversation_item(event: agents.ConversationItemAddedEvent):
+        """Capture agent responses from conversation"""
+        try:
+            item = event.item
+            # Check if this is an assistant/agent message
+            if hasattr(item, 'role') and item.role in ['assistant', 'model']:
+                # Extract text content from the message
+                text_content = ""
+                if hasattr(item, 'content'):
+                    if isinstance(item.content, str):
+                        text_content = item.content
+                    elif isinstance(item.content, list):
+                        # Content might be a list of content parts
+                        for part in item.content:
+                            if hasattr(part, 'text'):
+                                text_content += part.text
+                            elif isinstance(part, str):
+                                text_content += part
                 
-                if is_final and text:
-                    # Determine if it's user or agent
-                    is_agent = "agent" in participant.lower() or participant == assistant.__class__.__name__
+                if text_content:
+                    conversation_context["agent_msg"] = text_content
+                    logging.info(f"🤖 Gyanika: {text_content[:100]}...")
                     
-                    if is_agent:
-                        conversation_context["agent_msg"] = text
-                        logging.info(f"🤖 Gyanika: {text[:100]}...")
-                        
-                        # If we have both user and agent messages, save them
-                        if conversation_context["user_msg"]:
-                            log_conversation_turn(
-                                user_message=conversation_context["user_msg"],
-                                assistant_response=conversation_context["agent_msg"]
-                            )
-                            conversation_context["user_msg"] = None
-                            conversation_context["agent_msg"] = None
-                    else:
-                        conversation_context["user_msg"] = text
-                        logging.info(f"👤 User: {text[:100]}...")
-                        if not intro_sent:
-                            asyncio.create_task(
-                                session.generate_reply(
-                                    instructions=SESSION_INSTRUCTION,
-                                )
-                            )
-                            intro_sent = True
+                    # Save conversation if we have both user and agent messages
+                    if conversation_context["user_msg"]:
+                        log_conversation_turn(
+                            user_message=conversation_context["user_msg"],
+                            assistant_response=conversation_context["agent_msg"]
+                        )
+                        conversation_context["user_msg"] = None
+                        conversation_context["agent_msg"] = None
+            
+            # Also check for user messages
+            elif hasattr(item, 'role') and item.role == 'user':
+                text_content = ""
+                if hasattr(item, 'content'):
+                    if isinstance(item.content, str):
+                        text_content = item.content
+                    elif isinstance(item.content, list):
+                        for part in item.content:
+                            if hasattr(part, 'text'):
+                                text_content += part.text
+                            elif isinstance(part, str):
+                                text_content += part
+                
+                if text_content and not conversation_context["user_msg"]:
+                    conversation_context["user_msg"] = text_content
+                    logging.info(f"👤 User (from chat): {text_content[:100]}...")
+                    
         except Exception as e:
-            logging.debug(f"Data packet processing: {e}")
+            logging.debug(f"Conversation item processing: {e}")
+    
+    # Also listen for speech events (backup method)
+    @session.on("agent_speech_committed")  
+    def on_speech_committed(event):
+        """Backup capture of agent speech when committed"""
+        try:
+            if hasattr(event, 'content') and event.content:
+                text = event.content
+                conversation_context["agent_msg"] = text
+                logging.info(f"🤖 Gyanika (speech): {text[:100]}...")
+                
+                if conversation_context["user_msg"]:
+                    log_conversation_turn(
+                        user_message=conversation_context["user_msg"],
+                        assistant_response=text
+                    )
+                    conversation_context["user_msg"] = None
+                    conversation_context["agent_msg"] = None
+        except Exception as e:
+            logging.debug(f"Speech commit processing: {e}")
     
     await session.start(
         room=ctx.room,

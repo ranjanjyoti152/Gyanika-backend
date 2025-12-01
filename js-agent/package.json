@@ -1,0 +1,26 @@
+{
+  "name": "gyanika-js-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/agent.js dev"
+  },
+  "dependencies": {
+    "@livekit/agents": "1.0.19",
+    "@livekit/agents-plugin-google": "1.0.19",
+    "@qdrant/js-client-rest": "^1.11.0",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.14",
+    "ps-list": "^9.0.0",
+    "screenshot-desktop": "^1.15.3",
+    "systeminformation": "^5.23.7",
+    "tsx": "^4.19.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/nodemailer": "^6.4.14"
+  }
+}

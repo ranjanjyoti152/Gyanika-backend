@@ -1,0 +1,17 @@
+livekit-agents
+livekit-plugins-openai
+livekit-plugins-silero
+livekit-plugins-google
+livekit-plugins-noise-cancellation
+mem0ai
+ddgs
+langchain_community
+requests
+python-dotenv
+psutil
+pyautogui
+pillow
+qdrant-client
+sentence-transformers
+PyPDF2
+lightrag-hku

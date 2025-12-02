@@ -39,4 +39,3 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
-agent-starter-react/

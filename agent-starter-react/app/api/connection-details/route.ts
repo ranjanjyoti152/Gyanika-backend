@@ -42,22 +42,26 @@ export async function POST(req: Request) {
     const userName: string = body?.user_name || 'Student';
     const userId: string = body?.user_id || `user_${userName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
     const userEmail: string = body?.user_email || '';
-    const userClass: string = body?.user_class || '';
+    const userDbId: string = body?.user_db_id || userId;  // PostgreSQL UUID
 
     // Use provided user info for persistent identity
     const participantName = userName;
-    const participantIdentity = userId;
+    const participantIdentity = userId;  // Use username as identity for agent to recognize
     
-    // Create a room name
-    const roomName = body?.room_name || `gyanika_room_${Math.floor(Math.random() * 10_000)}`;
+    // USER-SPECIFIC ROOM: Each user gets their own stable room
+    // Room name is based on userId (no timestamp) so reconnecting joins same room
+    // This prevents users from talking to each other while still having 1 agent per user
+    const roomName = `gyanika_room_${userId}`;
 
     // Build metadata with user info for the agent
     const metadata = JSON.stringify({
-      user_id: participantIdentity,
+      user_id: userId,           // Username for agent to identify
+      user_db_id: userDbId,      // PostgreSQL UUID
       name: participantName,
       email: userEmail,
-      class: userClass,
     });
+
+    console.log(`[connection-details] User: ${participantName} (${userId}), Room: ${roomName}`);
 
     // Create the room first
     try {

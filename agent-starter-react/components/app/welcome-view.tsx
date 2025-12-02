@@ -1,5 +1,5 @@
 import { Button } from '@/components/livekit/button';
-import { getCurrentUser } from '@/lib/auth';
+import { useAuth } from '@/hooks/useAuth';
 
 function WelcomeImage() {
   return (
@@ -23,7 +23,7 @@ export const WelcomeView = ({
   onStartCall,
   ref,
 }: React.ComponentProps<'div'> & WelcomeViewProps) => {
-  const user = getCurrentUser();
+  const { user } = useAuth();
 
   return (
     <div ref={ref} className="relative">
@@ -34,12 +34,12 @@ export const WelcomeView = ({
         <WelcomeImage />
 
         <h1 className="text-3xl font-bold text-cyan-100 mb-2 glow-text">
-          {user ? `Hello, ${user.name}! 👋` : 'Welcome to Gyanika'}
+          {user ? `Hello, ${user.full_name || user.username}! 👋` : 'Welcome to Gyanika'}
         </h1>
         
         <p className="text-cyan-300/80 max-w-prose pt-1 leading-6">
-          {user?.class 
-            ? `Ready to learn Class ${user.class} topics?` 
+          {user?.exam_target 
+            ? `Ready to learn ${user.exam_target} topics?` 
             : 'Your AI learning assistant for Classes 9-12'}
         </p>
 

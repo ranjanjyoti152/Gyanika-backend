@@ -7,9 +7,7 @@ from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions
 from livekit.plugins import google
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
-from lightrag_store import get_lightrag_store
-from conversation_logger import set_user_context, log_conversation_turn
-from memory import get_brain, get_memory_enhanced_instructions
+from postgres_memory import get_postgres_memory, test_connection as test_db_connection
 from tools import (
     get_weather,
     search_web,
@@ -53,70 +51,98 @@ class Assistant(Agent):
 
 
 async def entrypoint(ctx: agents.JobContext):
-    # Initialize LightRAG store for conversation memory
-    lightrag_store = get_lightrag_store()
-    lightrag_available = lightrag_store.health_check()
+    # Test PostgreSQL connection
+    db_available = test_db_connection()
     
     # Wait for connection and get actual user identity
     await ctx.connect()
     
-    # Get user identity from the first non-agent participant
+    # SHARED ROOM MODEL: Multiple users can be in the same room
+    # We track the CURRENT SPEAKER (who is talking) for memory
+    # Each user has their own memory context based on their identity
+    
+    # Dictionary to track memory per user in the room
+    user_memories = {}  # {user_id: memory_instance}
+    current_speaker_id = None
+    current_speaker_name = None
+    
+    # Get initial user from first non-agent participant
     user_id = None
     user_name = None
     user_metadata = {}
     
-    # Wait for a real user to join (not another agent)
-    # Try up to 30 seconds to find a user participant
-    for attempt in range(30):
-        for participant in ctx.room.remote_participants.values():
-            # Skip if this is another agent (check identity prefix and kind)
-            identity = participant.identity or ""
-            
-            # Agents have identity starting with "agent-" 
-            if identity.startswith("agent-"):
-                logging.debug(f"Skipping agent participant: {identity}")
-                continue
-            
-            # Also check participant kind if available
-            try:
-                if hasattr(participant, 'kind') and str(participant.kind).upper() == "AGENT":
-                    logging.debug(f"Skipping agent by kind: {identity}")
+    # First check job metadata/request for user info (most reliable)
+    job = ctx.job
+    if job:
+        logging.info(f"🔍 Job info - room: {job.room.name if job.room else 'N/A'}")
+        # Check if room name contains username pattern: gyanika_room_{username}_{timestamp}
+        room_name = ctx.room.name or ""
+        if room_name.startswith("gyanika_room_"):
+            # Parse username from room name: gyanika_room_ranjan_1733146708940
+            parts = room_name.replace("gyanika_room_", "").split("_")
+            if len(parts) >= 2:
+                # Join all parts except the last one (timestamp)
+                extracted_username = "_".join(parts[:-1])
+                # Verify last part is a timestamp (all digits)
+                if parts[-1].isdigit() and len(extracted_username) > 0:
+                    user_id = extracted_username
+                    user_name = extracted_username
+                    logging.info(f"👤 Extracted username from room name: {user_name}")
+    
+    # If not found from room name, try participants
+    if not user_id:
+        # Wait for a real user to join (not another agent)
+        # Try up to 30 seconds to find a user participant
+        for attempt in range(30):
+            for participant in ctx.room.remote_participants.values():
+                # Skip if this is another agent (check identity prefix and kind)
+                identity = participant.identity or ""
+                
+                # Agents have identity starting with "agent-" 
+                if identity.startswith("agent-"):
+                    logging.debug(f"Skipping agent participant: {identity}")
                     continue
-            except:
-                pass
-            
-            # This is a real user!
-            user_id = identity
-            user_name = participant.name or identity
-            
-            # Parse metadata if available (could contain user profile info)
-            if participant.metadata:
+                
+                # Also check participant kind if available
                 try:
-                    import json
-                    user_metadata = json.loads(participant.metadata)
-                    # If metadata has user_id or name, use those
-                    user_id = user_metadata.get("user_id", user_id)
-                    user_name = user_metadata.get("name", user_name)
+                    if hasattr(participant, 'kind') and str(participant.kind).upper() == "AGENT":
+                        logging.debug(f"Skipping agent by kind: {identity}")
+                        continue
                 except:
                     pass
+                
+                # This is a real user!
+                user_id = identity
+                user_name = participant.name or identity
+                
+                # Parse metadata if available (could contain user profile info)
+                if participant.metadata:
+                    try:
+                        import json
+                        user_metadata = json.loads(participant.metadata)
+                        # If metadata has user_id or name, use those
+                        user_id = user_metadata.get("user_id", user_id)
+                        user_name = user_metadata.get("name", user_name)
+                    except:
+                        pass
+                
+                logging.info(f"👤 Found user participant: {user_name} (ID: {user_id})")
+                break
             
-            logging.info(f"👤 Found user: {user_name} (ID: {user_id})")
-            break
-        
-        if user_id:
-            break
-            
-        # Wait a bit and try again
-        if attempt < 29:
-            await asyncio.sleep(1)
-            if attempt % 5 == 0:
-                logging.info(f"⏳ Waiting for user to join... ({attempt + 1}s)")
+            if user_id:
+                break
+                
+            # Wait a bit and try again
+            if attempt < 29:
+                await asyncio.sleep(1)
+                if attempt % 5 == 0:
+                    logging.info(f"⏳ Waiting for user to join... ({attempt + 1}s)")
     
-    # Fallback to room name if no user found after waiting
+    # Fallback to "guest" if still no user found
     if not user_id:
-        user_id = ctx.room.name or "default_user"
-        user_name = user_id
-        logging.info(f"⚠️ No user participant found after waiting, using room name: {user_id}")
+        user_id = "guest"
+        user_name = "Guest User"
+        logging.info(f"⚠️ No user found, using default: {user_id}")
     
     # Get session ID properly (it might be a coroutine in some versions)
     try:
@@ -131,30 +157,29 @@ async def entrypoint(ctx: agents.JobContext):
     logging.info(f"   User: {user_name} (ID: {user_id})")
     logging.info(f"   Room: {ctx.room.name}")
     logging.info(f"   Session: {session_id}")
-    logging.info(f"   LightRAG: {os.getenv('LIGHTRAG_URL', 'http://localhost:9621')}")
-    logging.info(f"   LightRAG Status: {'✅ Connected' if lightrag_available else '⚠️ Not Available'}")
-    logging.info("   NOTE: Conversations saved per user to LightRAG")
+    logging.info(f"   PostgreSQL: {'✅ Connected' if db_available else '⚠️ Not Available'}")
+    logging.info("   NOTE: Conversations saved to PostgreSQL database")
     logging.info("=" * 80)
     
-    # Set user context for conversation logging
-    set_user_context(user_id, session_id)
-    
-    # Initialize Gyanika's Brain (Memory System) with user name
-    brain = get_brain(user_id, user_name)
-    logging.info(f"🧠 Gyanika's Brain initialized for {user_name} - ready to remember past conversations!")
+    # Initialize PostgreSQL Memory System
+    memory = get_postgres_memory(user_id, user_name)
+    logging.info(f"🧠 PostgreSQL Memory initialized for {user_name} - ready to remember past conversations!")
     
     # Fetch past memories at session start
     initial_memory_context = ""
     try:
-        # Query past conversations for this user
-        past_memories = brain.recall_memories(f"Previous conversations with user {user_name}")
+        # Query past conversations for this user from PostgreSQL
+        past_memories = memory.recall_memories()
         if past_memories:
             initial_memory_context = past_memories
             logging.info(f"🧠 Loaded past memory context for {user_name}")
+            logging.info(f"📝 Memory length: {len(past_memories)} characters")
         else:
             logging.info(f"🆕 No past conversations found for {user_name} - new user!")
     except Exception as e:
         logging.warning(f"⚠️ Could not load past memories: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Store conversation context
     conversation_context = {"user_msg": None, "agent_msg": None}
@@ -162,8 +187,16 @@ async def entrypoint(ctx: agents.JobContext):
     
     session = AgentSession()
 
-    # Create assistant
+    # Create assistant with memory-enhanced instructions if available
+    base_instructions = AGENT_INSTRUCTION
+    if initial_memory_context:
+        base_instructions = f"{AGENT_INSTRUCTION}\n\n{initial_memory_context}"
+        logging.info(f"🧠 Agent initialized with past memory context!")
+    
+    # Create assistant with memory context
     assistant = Assistant()
+    # Update assistant instructions with memory
+    assistant._instructions = base_instructions
     
     # Subscribe to user transcription events
     @session.on("user_input_transcribed")
@@ -177,7 +210,7 @@ async def entrypoint(ctx: agents.JobContext):
             
             # Recall memories and enhance instructions
             try:
-                memory_context = brain.get_memory_context_prompt(user_query)
+                memory_context = memory.get_memory_context_prompt(user_query)
                 if memory_context:
                     logging.info(f"🧠 Memory recalled for query - enhancing response context")
                     # Update agent with memory-enhanced instructions
@@ -221,13 +254,8 @@ async def entrypoint(ctx: agents.JobContext):
                     
                     # Save conversation if we have both user and agent messages
                     if conversation_context["user_msg"]:
-                        # Save to long-term memory (Qdrant + LightRAG)
-                        log_conversation_turn(
-                            user_message=conversation_context["user_msg"],
-                            assistant_response=conversation_context["agent_msg"]
-                        )
-                        # Also save to short-term memory (Brain)
-                        brain.add_to_short_term(
+                        # Save to PostgreSQL memory
+                        memory.add_to_short_term(
                             user_msg=conversation_context["user_msg"],
                             agent_msg=conversation_context["agent_msg"]
                         )
@@ -265,13 +293,8 @@ async def entrypoint(ctx: agents.JobContext):
                 logging.info(f"🤖 Gyanika (speech): {text[:100]}...")
                 
                 if conversation_context["user_msg"]:
-                    # Save to long-term memory
-                    log_conversation_turn(
-                        user_message=conversation_context["user_msg"],
-                        assistant_response=text
-                    )
-                    # Save to short-term memory (Brain)
-                    brain.add_to_short_term(
+                    # Save to PostgreSQL memory
+                    memory.add_to_short_term(
                         user_msg=conversation_context["user_msg"],
                         agent_msg=text
                     )
@@ -289,10 +312,10 @@ async def entrypoint(ctx: agents.JobContext):
         ),
     )
 
-    # Listen for new participants joining (to update user identity)
+    # Listen for new participants joining - SHARED ROOM MODEL
     @ctx.room.on("participant_connected")
     def on_participant_connected(participant):
-        nonlocal user_id, user_name, brain
+        nonlocal current_speaker_id, current_speaker_name, user_memories
         
         # Skip if this is another agent (check identity prefix)
         identity = participant.identity or ""
@@ -308,29 +331,84 @@ async def entrypoint(ctx: agents.JobContext):
         except:
             pass
         
-        # This is a real user
-        user_id = participant.identity
-        user_name = participant.name or participant.identity
+        # This is a real user - get their info
+        p_user_id = participant.identity
+        p_user_name = participant.name or participant.identity
         
         # Parse metadata if available
         if participant.metadata:
             try:
                 import json
                 meta = json.loads(participant.metadata)
-                user_id = meta.get("user_id", user_id)
-                user_name = meta.get("name", user_name)
+                p_user_id = meta.get("user_id", p_user_id)
+                p_user_name = meta.get("name", p_user_name)
             except:
                 pass
         
-        logging.info(f"👤 User joined: {user_name} (ID: {user_id})")
+        logging.info(f"👤 User joined room: {p_user_name} (ID: {p_user_id})")
         
-        # Update brain for this specific user with their name
-        set_user_context(user_id, session_id)
-        brain = get_brain(user_id, user_name)
-        logging.info(f"🧠 Brain updated for user: {user_name} ({user_id})")
+        # Create memory for this user if not exists
+        if p_user_id not in user_memories:
+            user_memories[p_user_id] = {
+                'memory': get_postgres_memory(p_user_id, p_user_name),
+                'name': p_user_name
+            }
+            logging.info(f"🧠 PostgreSQL Memory initialized for: {p_user_name}")
+        
+        # Set as current speaker if first user
+        if current_speaker_id is None:
+            current_speaker_id = p_user_id
+            current_speaker_name = p_user_name
+
+    # Handle participant disconnect - SHARED ROOM MODEL
+    @ctx.room.on("participant_disconnected")
+    def on_participant_disconnected(participant):
+        nonlocal current_speaker_id, current_speaker_name, user_memories
+        
+        identity = participant.identity or ""
+        
+        # Skip agent disconnects
+        if identity.startswith("agent-"):
+            return
+        try:
+            if hasattr(participant, 'kind') and str(participant.kind).upper() == "AGENT":
+                return
+        except:
+            pass
+        
+        # Get user id from metadata or identity
+        p_user_id = identity
+        if participant.metadata:
+            try:
+                import json
+                meta = json.loads(participant.metadata)
+                p_user_id = meta.get("user_id", p_user_id)
+            except:
+                pass
+        
+        logging.info(f"👋 User left room: {participant.name or identity}")
+        
+        # End conversation for this user and remove from memories
+        if p_user_id in user_memories:
+            try:
+                user_memories[p_user_id]['memory'].end_conversation()
+                logging.info(f"💾 Conversation saved for: {p_user_id}")
+            except Exception as e:
+                logging.warning(f"⚠️ Could not save conversation: {e}")
+            del user_memories[p_user_id]
+        
+        # Update current speaker if they left
+        if current_speaker_id == p_user_id:
+            # Set to another user if available
+            if user_memories:
+                current_speaker_id = list(user_memories.keys())[0]
+                current_speaker_name = user_memories[current_speaker_id]['name']
+            else:
+                current_speaker_id = None
+                current_speaker_name = None
 
     logging.info("✅ Gyanika agent connected and ready!")
-    logging.info(f"💾 Listening for conversations from user: {user_name}...")
+    logging.info(f"🎯 Shared room mode - ready for multiple users!")
 
 
 async def request_fnc(req: agents.JobRequest) -> None:
@@ -344,10 +422,18 @@ async def request_fnc(req: agents.JobRequest) -> None:
 
 
 if __name__ == "__main__":
+    from livekit.agents import JobExecutorType
+    
     agents.cli.run_app(
         agents.WorkerOptions(
             entrypoint_fnc=entrypoint,
             request_fnc=request_fnc,
+            # CRITICAL: Use THREAD executor to minimize sessions/billing
+            # THREAD = All jobs run in same process (1 session for multiple users)
+            # PROCESS = Each job spawns new process (multiple sessions = more billing)
+            job_executor_type=JobExecutorType.THREAD,
+            num_idle_processes=0,   # No idle processes with thread executor
+            load_threshold=0.9,     # Accept jobs up to 90% load
             job_memory_warn_mb=0,
             job_memory_limit_mb=0,
         )

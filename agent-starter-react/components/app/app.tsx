@@ -57,8 +57,8 @@ function MainApp({ appConfig }: AppProps) {
       <div className="fixed top-0 right-0 z-50 p-4 flex items-center gap-3">
         <div className="glass-panel rounded-xl px-4 py-2 flex items-center gap-3">
           <div className="text-right">
-            <p className="text-sm font-medium text-cyan-100">{user.name}</p>
-            <p className="text-xs text-cyan-400/70">{user.class ? `Class ${user.class}` : user.email}</p>
+            <p className="text-sm font-medium text-cyan-100">{user.full_name || user.username}</p>
+            <p className="text-xs text-cyan-400/70">{user.exam_target || user.email}</p>
           </div>
           <button
             onClick={logout}

@@ -15,3 +15,4 @@ qdrant-client
 sentence-transformers
 PyPDF2
 lightrag-hku
+psycopg2-binary>=2.9.0

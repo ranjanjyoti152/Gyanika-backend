@@ -183,7 +183,6 @@ async def entrypoint(ctx: agents.JobContext):
     
     # Store conversation context
     conversation_context = {"user_msg": None, "agent_msg": None}
-    intro_sent = False
     
     session = AgentSession()
 
@@ -202,13 +201,12 @@ async def entrypoint(ctx: agents.JobContext):
     @session.on("user_input_transcribed")
     def on_user_transcribed(event: agents.UserInputTranscribedEvent):
         """Capture user speech transcription and enhance with memory"""
-        nonlocal intro_sent
         if event.is_final and event.transcript:
             user_query = event.transcript
             conversation_context["user_msg"] = user_query
             logging.info(f"👤 User: {user_query[:100]}...")
             
-            # Recall memories and enhance instructions
+            # Recall memories and enhance instructions dynamically
             try:
                 memory_context = memory.get_memory_context_prompt(user_query)
                 if memory_context:
@@ -219,13 +217,9 @@ async def entrypoint(ctx: agents.JobContext):
             except Exception as e:
                 logging.warning(f"⚠️ Memory recall failed: {e}")
             
-            # Generate intro on first interaction
-            if not intro_sent:
-                try:
-                    session.generate_reply(instructions=SESSION_INSTRUCTION)
-                    intro_sent = True
-                except Exception as e:
-                    logging.error(f"Error generating intro reply: {e}")
+            # NOTE: DO NOT call generate_reply() here!
+            # Gemini Realtime API automatically generates response when user speaks
+            # Calling generate_reply() causes timeout conflicts
     
     # Subscribe to conversation item events (captures agent responses)
     @session.on("conversation_item_added")

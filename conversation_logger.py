@@ -1,10 +1,9 @@
 """
 Conversation logger module for Gyanika
-Captures and saves conversation turns to Qdrant vector store and LightRAG
+Captures and saves conversation turns to LightRAG for memory
 """
 import logging
 from typing import Optional
-from vector_store import get_vector_store
 from lightrag_store import get_lightrag_store
 from datetime import datetime
 
@@ -27,12 +26,12 @@ def log_user_message(message: str):
     logging.info(f"👤 User message logged: {message[:100]}...")
 
 def log_conversation_turn(user_message: str, assistant_response: str):
-    """Log a complete conversation turn to Qdrant and LightRAG"""
+    """Log a complete conversation turn to LightRAG for memory"""
     user_id = _current_conversation.get("user_id", "unknown_user")
     session_id = _current_conversation.get("session_id", "unknown_session")
     
     logging.info("=" * 60)
-    logging.info("📝 SAVING CONVERSATION TURN")
+    logging.info("📝 SAVING CONVERSATION TURN TO LIGHTRAG")
     logging.info(f"   User ID: {user_id}")
     logging.info(f"   Session ID: {session_id}")
     logging.info(f"   User Message: {user_message[:100] if user_message else 'None'}...")
@@ -43,31 +42,9 @@ def log_conversation_turn(user_message: str, assistant_response: str):
         logging.warning("⚠️  Incomplete conversation turn - skipping save")
         return False
     
-    success_qdrant = False
     success_lightrag = False
     
-    # Save to Qdrant vector store
-    try:
-        vs = get_vector_store()
-        success_qdrant = vs.add_conversation(
-            user_id=user_id,
-            session_id=session_id,
-            user_message=user_message,
-            assistant_response=assistant_response,
-            metadata={
-                "timestamp": datetime.now().isoformat(),
-                "source": "gyanika_agent"
-            }
-        )
-        
-        if success_qdrant:
-            logging.info(f"✅ Conversation saved to Qdrant: user={user_id}")
-        else:
-            logging.error(f"❌ Failed to save conversation to Qdrant")
-    except Exception as e:
-        logging.error(f"❌ Error saving conversation to Qdrant: {e}", exc_info=True)
-    
-    # Save to LightRAG for knowledge graph
+    # Save to LightRAG for knowledge graph and memory
     try:
         lightrag = get_lightrag_store()
         logging.info(f"📤 Attempting to save to LightRAG at {lightrag.url}...")
@@ -87,32 +64,19 @@ def log_conversation_turn(user_message: str, assistant_response: str):
         else:
             logging.warning(f"⚠️ Failed to save conversation to LightRAG (server may be unavailable)")
     except Exception as e:
-        logging.warning(f"⚠️ LightRAG save skipped: {e}", exc_info=True)
+        logging.warning(f"⚠️ LightRAG save error: {e}", exc_info=True)
     
-    logging.info(f"💾 Save results - Qdrant: {success_qdrant}, LightRAG: {success_lightrag}")
-    return success_qdrant or success_lightrag
+    logging.info(f"💾 Save result - LightRAG: {success_lightrag}")
+    return success_lightrag
 
 def get_conversation_history(query: str, user_id: Optional[str] = None, limit: int = 5):
-    """Retrieve conversation history for context from Qdrant and LightRAG"""
+    """Retrieve conversation history for context from LightRAG"""
     if user_id is None:
         user_id = _current_conversation.get("user_id", "unknown_user")
     
     results = []
     
-    # Try Qdrant first
-    try:
-        vs = get_vector_store()
-        qdrant_results = vs.search_conversation_history(
-            query=query,
-            user_id=user_id,
-            limit=limit
-        )
-        results.extend(qdrant_results)
-        logging.info(f"🔍 Retrieved {len(qdrant_results)} items from Qdrant for {user_id}")
-    except Exception as e:
-        logging.error(f"❌ Error retrieving from Qdrant: {e}")
-    
-    # Also try LightRAG for additional context
+    # Get from LightRAG for conversation context
     try:
         lightrag = get_lightrag_store()
         lightrag_results = lightrag.search_conversations(
@@ -124,6 +88,6 @@ def get_conversation_history(query: str, user_id: Optional[str] = None, limit: i
             results.extend(lightrag_results)
             logging.info(f"🔍 Retrieved {len(lightrag_results)} items from LightRAG for {user_id}")
     except Exception as e:
-        logging.warning(f"⚠️ LightRAG search skipped: {e}")
+        logging.warning(f"⚠️ LightRAG search error: {e}")
     
     return results

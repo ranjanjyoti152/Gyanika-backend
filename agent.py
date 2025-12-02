@@ -75,19 +75,26 @@ async def entrypoint(ctx: agents.JobContext):
     job = ctx.job
     if job:
         logging.info(f"🔍 Job info - room: {job.room.name if job.room else 'N/A'}")
-        # Check if room name contains username pattern: gyanika_room_{username}_{timestamp}
+        # Check if room name contains username pattern
         room_name = ctx.room.name or ""
         if room_name.startswith("gyanika_room_"):
-            # Parse username from room name: gyanika_room_ranjan_1733146708940
-            parts = room_name.replace("gyanika_room_", "").split("_")
-            if len(parts) >= 2:
-                # Join all parts except the last one (timestamp)
+            # Parse username from room name
+            # Supports: gyanika_room_ranjan OR gyanika_room_ranjan_1733146708940
+            remainder = room_name.replace("gyanika_room_", "")
+            parts = remainder.split("_")
+            
+            # Check if last part looks like a timestamp (all digits, length > 10)
+            if len(parts) >= 2 and parts[-1].isdigit() and len(parts[-1]) > 10:
+                # Format with timestamp: gyanika_room_ranjan_1733146708940
                 extracted_username = "_".join(parts[:-1])
-                # Verify last part is a timestamp (all digits)
-                if parts[-1].isdigit() and len(extracted_username) > 0:
-                    user_id = extracted_username
-                    user_name = extracted_username
-                    logging.info(f"👤 Extracted username from room name: {user_name}")
+            else:
+                # Format without timestamp: gyanika_room_ranjan
+                extracted_username = remainder
+            
+            if extracted_username:
+                user_id = extracted_username
+                user_name = extracted_username.title()  # Capitalize
+                logging.info(f"👤 Extracted username from room name: {user_name} (ID: {user_id})")
     
     # If not found from room name, try participants
     if not user_id:
@@ -206,14 +213,12 @@ async def entrypoint(ctx: agents.JobContext):
             conversation_context["user_msg"] = user_query
             logging.info(f"👤 User: {user_query[:100]}...")
             
-            # Recall memories and enhance instructions dynamically
+            # Recall memories for context (logged but not dynamically injected)
+            # Dynamic instruction update not supported in current API
             try:
                 memory_context = memory.get_memory_context_prompt(user_query)
                 if memory_context:
-                    logging.info(f"🧠 Memory recalled for query - enhancing response context")
-                    # Update agent with memory-enhanced instructions
-                    enhanced_instructions = f"{AGENT_INSTRUCTION}\n\n{memory_context}"
-                    session.update_agent(instructions=enhanced_instructions)
+                    logging.info(f"🧠 Memory recalled for query - context available")
             except Exception as e:
                 logging.warning(f"⚠️ Memory recall failed: {e}")
             

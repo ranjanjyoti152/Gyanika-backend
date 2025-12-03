@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import asyncio
 import os
 import logging
+import time
 
 from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions
@@ -57,99 +58,100 @@ async def entrypoint(ctx: agents.JobContext):
     # Wait for connection and get actual user identity
     await ctx.connect()
     
-    # SHARED ROOM MODEL: Multiple users can be in the same room
-    # We track the CURRENT SPEAKER (who is talking) for memory
-    # Each user has their own memory context based on their identity
-    
     # Dictionary to track memory per user in the room
     user_memories = {}  # {user_id: memory_instance}
     current_speaker_id = None
     current_speaker_name = None
     
-    # Get initial user from first non-agent participant
+    # Get user info - Priority order:
+    # 1. From participant metadata (most reliable)
+    # 2. From room name parsing
+    # 3. Fallback to guest
+    
     user_id = None
     user_name = None
     user_metadata = {}
     
-    # First check job metadata/request for user info (most reliable)
-    job = ctx.job
-    if job:
-        logging.info(f"🔍 Job info - room: {job.room.name if job.room else 'N/A'}")
-        # Check if room name contains username pattern
+    # STEP 1: Quick check for existing participants with metadata
+    for participant in ctx.room.remote_participants.values():
+        identity = participant.identity or ""
+        
+        # Skip agents
+        if identity.startswith("agent-"):
+            continue
+        
+        # Found a user! Get their metadata
+        if participant.metadata:
+            try:
+                import json
+                user_metadata = json.loads(participant.metadata)
+                user_id = user_metadata.get("user_id") or identity
+                user_name = user_metadata.get("name") or participant.name or identity
+                logging.info(f"👤 Found user from participant: {user_name} (ID: {user_id})")
+                break
+            except:
+                user_id = identity
+                user_name = participant.name or identity
+                break
+        else:
+            user_id = identity
+            user_name = participant.name or identity
+            break
+    
+    # STEP 2: If no participant yet, parse from room name (faster than waiting)
+    if not user_id:
         room_name = ctx.room.name or ""
         if room_name.startswith("gyanika_room_"):
-            # Parse username from room name
-            # Supports: gyanika_room_ranjan OR gyanika_room_ranjan_1733146708940
+            # Parse: gyanika_room_USERNAME or gyanika_room_USERNAME_TIMESTAMP
             remainder = room_name.replace("gyanika_room_", "")
             parts = remainder.split("_")
             
-            # Check if last part looks like a timestamp (all digits, length > 10)
+            # Check if last part is timestamp (all digits, length > 10)
             if len(parts) >= 2 and parts[-1].isdigit() and len(parts[-1]) > 10:
-                # Format with timestamp: gyanika_room_ranjan_1733146708940
                 extracted_username = "_".join(parts[:-1])
             else:
-                # Format without timestamp: gyanika_room_ranjan
                 extracted_username = remainder
             
             if extracted_username:
                 user_id = extracted_username
-                user_name = extracted_username.title()  # Capitalize
-                logging.info(f"👤 Extracted username from room name: {user_name} (ID: {user_id})")
+                user_name = extracted_username.replace("_", " ").title()
+                logging.info(f"👤 User from room name: {user_name} (ID: {user_id})")
     
-    # If not found from room name, try participants
+    # STEP 3: If still no user, wait briefly for participant (max 3 seconds)
     if not user_id:
-        # Wait for a real user to join (not another agent)
-        # Try up to 30 seconds to find a user participant
-        for attempt in range(30):
+        for attempt in range(6):  # 6 x 0.5s = 3 seconds max
+            await asyncio.sleep(0.5)
+            
             for participant in ctx.room.remote_participants.values():
-                # Skip if this is another agent (check identity prefix and kind)
                 identity = participant.identity or ""
-                
-                # Agents have identity starting with "agent-" 
                 if identity.startswith("agent-"):
-                    logging.debug(f"Skipping agent participant: {identity}")
                     continue
-                
-                # Also check participant kind if available
-                try:
-                    if hasattr(participant, 'kind') and str(participant.kind).upper() == "AGENT":
-                        logging.debug(f"Skipping agent by kind: {identity}")
-                        continue
-                except:
-                    pass
-                
-                # This is a real user!
-                user_id = identity
-                user_name = participant.name or identity
-                
-                # Parse metadata if available (could contain user profile info)
+                    
                 if participant.metadata:
                     try:
                         import json
                         user_metadata = json.loads(participant.metadata)
-                        # If metadata has user_id or name, use those
-                        user_id = user_metadata.get("user_id", user_id)
-                        user_name = user_metadata.get("name", user_name)
+                        user_id = user_metadata.get("user_id") or identity
+                        user_name = user_metadata.get("name") or participant.name or identity
                     except:
-                        pass
-                
-                logging.info(f"👤 Found user participant: {user_name} (ID: {user_id})")
-                break
+                        user_id = identity
+                        user_name = participant.name or identity
+                else:
+                    user_id = identity
+                    user_name = participant.name or identity
+                    
+                if user_id:
+                    logging.info(f"👤 Found user after wait: {user_name} (ID: {user_id})")
+                    break
             
             if user_id:
                 break
-                
-            # Wait a bit and try again
-            if attempt < 29:
-                await asyncio.sleep(1)
-                if attempt % 5 == 0:
-                    logging.info(f"⏳ Waiting for user to join... ({attempt + 1}s)")
     
-    # Fallback to "guest" if still no user found
+    # STEP 4: Final fallback
     if not user_id:
         user_id = "guest"
         user_name = "Guest User"
-        logging.info(f"⚠️ No user found, using default: {user_id}")
+        logging.warning(f"⚠️ No user found, using fallback: {user_id}")
     
     # Get session ID properly (it might be a coroutine in some versions)
     try:
@@ -189,8 +191,53 @@ async def entrypoint(ctx: agents.JobContext):
         import traceback
         traceback.print_exc()
     
-    # Store conversation context
-    conversation_context = {"user_msg": None, "agent_msg": None}
+    # Store conversation context with deduplication
+    conversation_context = {
+        "user_msg": None, 
+        "agent_msg": None,
+        "last_saved_user_msg": None,  # Track last saved to prevent duplicates
+        "last_saved_agent_msg": None,
+        "processing": False,  # Prevent concurrent saves
+        "last_transcription": None,  # Prevent duplicate transcription processing
+        "last_transcription_time": 0,  # Timestamp for debounce
+    }
+    
+    def save_conversation_if_ready():
+        """Save conversation only if we have both messages and not already saved"""
+        if conversation_context["processing"]:
+            return
+            
+        user_msg = conversation_context["user_msg"]
+        agent_msg = conversation_context["agent_msg"]
+        
+        # Check if we have both messages
+        if not user_msg or not agent_msg:
+            return
+            
+        # Check if this exact pair was already saved (deduplication)
+        if (user_msg == conversation_context["last_saved_user_msg"] and 
+            agent_msg == conversation_context["last_saved_agent_msg"]):
+            logging.debug("Skipping duplicate conversation save")
+            return
+        
+        conversation_context["processing"] = True
+        try:
+            # Save to PostgreSQL memory
+            memory.add_to_short_term(user_msg=user_msg, agent_msg=agent_msg)
+            
+            # Track what we saved
+            conversation_context["last_saved_user_msg"] = user_msg
+            conversation_context["last_saved_agent_msg"] = agent_msg
+            
+            # Clear current context
+            conversation_context["user_msg"] = None
+            conversation_context["agent_msg"] = None
+            
+            logging.info(f"💾 Saved conversation turn")
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to save conversation: {e}")
+        finally:
+            conversation_context["processing"] = False
     
     session = AgentSession()
 
@@ -210,8 +257,24 @@ async def entrypoint(ctx: agents.JobContext):
     def on_user_transcribed(event: agents.UserInputTranscribedEvent):
         """Capture user speech transcription and enhance with memory"""
         if event.is_final and event.transcript:
-            user_query = event.transcript
+            user_query = event.transcript.strip()
+            
+            # Skip if empty
+            if not user_query:
+                return
+            
+            # Deduplication: Skip if same transcription within 2 seconds
+            current_time = time.time()
+            if (user_query == conversation_context["last_transcription"] and 
+                current_time - conversation_context["last_transcription_time"] < 2.0):
+                logging.debug(f"⏭️ Skipping duplicate transcription: {user_query[:50]}...")
+                return
+            
+            # Update tracking
+            conversation_context["last_transcription"] = user_query
+            conversation_context["last_transcription_time"] = current_time
             conversation_context["user_msg"] = user_query
+            
             logging.info(f"👤 User: {user_query[:100]}...")
             
             # Recall memories for context (logged but not dynamically injected)
@@ -253,14 +316,7 @@ async def entrypoint(ctx: agents.JobContext):
                     logging.info(f"🤖 Gyanika: {text_content[:100]}...")
                     
                     # Save conversation if we have both user and agent messages
-                    if conversation_context["user_msg"]:
-                        # Save to PostgreSQL memory
-                        memory.add_to_short_term(
-                            user_msg=conversation_context["user_msg"],
-                            agent_msg=conversation_context["agent_msg"]
-                        )
-                        conversation_context["user_msg"] = None
-                        conversation_context["agent_msg"] = None
+                    save_conversation_if_ready()
             
             # Also check for user messages
             elif hasattr(item, 'role') and item.role == 'user':
@@ -289,17 +345,11 @@ async def entrypoint(ctx: agents.JobContext):
         try:
             if hasattr(event, 'content') and event.content:
                 text = event.content
-                conversation_context["agent_msg"] = text
-                logging.info(f"🤖 Gyanika (speech): {text[:100]}...")
-                
-                if conversation_context["user_msg"]:
-                    # Save to PostgreSQL memory
-                    memory.add_to_short_term(
-                        user_msg=conversation_context["user_msg"],
-                        agent_msg=text
-                    )
-                    conversation_context["user_msg"] = None
-                    conversation_context["agent_msg"] = None
+                # Only update if we don't already have an agent message
+                if not conversation_context["agent_msg"]:
+                    conversation_context["agent_msg"] = text
+                    logging.info(f"🤖 Gyanika (speech): {text[:100]}...")
+                    save_conversation_if_ready()
         except Exception as e:
             logging.debug(f"Speech commit processing: {e}")
     

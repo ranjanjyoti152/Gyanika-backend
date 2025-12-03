@@ -19,6 +19,9 @@ const LIVEKIT_URL = process.env.LIVEKIT_URL;
 const livekitHost = LIVEKIT_URL?.replace('wss://', 'https://') || '';
 const roomService = new RoomServiceClient(livekitHost, API_KEY, API_SECRET);
 
+// Lock to prevent duplicate room creation for same user
+const pendingRooms = new Map<string, Promise<any>>();
+
 // don't cache the results
 export const revalidate = 0;
 
@@ -63,62 +66,64 @@ export async function POST(req: Request) {
 
     console.log(`[connection-details] User: ${participantName} (${userId}), Room: ${roomName}`);
 
-    // Check if room already exists
-    let roomExists = false;
-    let hasActiveAgent = false;
-    let hasHumanUser = false;
-    try {
-      const rooms = await roomService.listRooms([roomName]);
-      if (rooms && rooms.length > 0) {
-        roomExists = true;
-        // Check participants in the room
-        const participants = await roomService.listParticipants(roomName);
-        
-        for (const p of participants) {
-          const isAgent = p.identity?.startsWith('agent-') || p.name?.toLowerCase().includes('gyanika');
-          if (isAgent) {
-            hasActiveAgent = true;
-          } else {
-            hasHumanUser = true;
-          }
-        }
-        
-        console.log(`Room ${roomName} exists, hasActiveAgent: ${hasActiveAgent}, hasHumanUser: ${hasHumanUser}, participants: ${participants.length}`);
-        
-        // If room exists but no human user, it's a stale room with orphan agent
-        // Delete the room so we start fresh
-        if (roomExists && hasActiveAgent && !hasHumanUser) {
-          console.log(`Deleting stale room ${roomName} with orphan agent`);
-          try {
-            await roomService.deleteRoom(roomName);
-            roomExists = false;
-            hasActiveAgent = false;
-          } catch (e) {
-            console.log(`Failed to delete stale room: ${e}`);
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`Room check failed (probably doesn't exist): ${e}`);
+    // Check if there's already a pending request for this room
+    if (pendingRooms.has(roomName)) {
+      console.log(`[connection-details] Waiting for pending room setup: ${roomName}`);
+      await pendingRooms.get(roomName);
+      // Return token without dispatching agent (already dispatched)
+      const participantToken = await createParticipantToken(
+        { identity: participantIdentity, name: participantName, metadata },
+        roomName,
+        agentName,
+        false  // Don't dispatch agent
+      );
+      const data: ConnectionDetails = {
+        serverUrl: LIVEKIT_URL,
+        roomName,
+        participantToken: participantToken,
+        participantName,
+        participantIdentity,
+      };
+      return NextResponse.json(data, { headers: new Headers({ 'Cache-Control': 'no-store' }) });
     }
 
-    // Create the room if it doesn't exist
-    if (!roomExists) {
+    // Create a promise for this room setup
+    const setupPromise = (async () => {
+      // Delete existing room to prevent duplicate agents
+      try {
+        await roomService.deleteRoom(roomName);
+        console.log(`Deleted existing room: ${roomName}`);
+      } catch (e) {
+        console.log(`Room ${roomName} doesn't exist or already deleted`);
+      }
+
+      // Small delay to ensure room is fully deleted
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Create fresh room
       try {
         await roomService.createRoom({
           name: roomName,
-          emptyTimeout: 60 * 10, // 10 minutes
-          maxParticipants: 10,
+          emptyTimeout: 60 * 5, // 5 minutes
+          maxParticipants: 5,
         });
         console.log(`Room created: ${roomName}`);
       } catch (e) {
-        // Room might already exist, that's ok
         console.log(`Room creation: ${e}`);
       }
+    })();
+
+    pendingRooms.set(roomName, setupPromise);
+    
+    try {
+      await setupPromise;
+    } finally {
+      // Remove from pending after 5 seconds (allow reconnects to use same room)
+      setTimeout(() => pendingRooms.delete(roomName), 5000);
     }
 
-    // Only dispatch agent if room is new or doesn't have an active agent
-    const shouldDispatchAgent = !hasActiveAgent;
+    // Always dispatch agent for fresh room
+    const shouldDispatchAgent = true;
     console.log(`Room: ${roomName}, shouldDispatchAgent: ${shouldDispatchAgent}`);
 
     const participantToken = await createParticipantToken(

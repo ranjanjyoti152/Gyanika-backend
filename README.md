@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="screenshots/Screenshot%202025-12-03%20at%2012.23.24%E2%80%AFPM.png" alt="Login Page" width="100%" />
+  <img src="screenshots/Screenshot%202025-12-03%20at%2012.23.32%E2%80%AFPM.png" alt="Welcome Screen" width="100%" />
 </p>
 
 <h1 align="center">🎓 Gyanika - AI-Powered Educational Voice Assistant</h1>
@@ -32,11 +32,11 @@
 <table>
   <tr>
     <td align="center">
-      <img src="screenshots/Screenshot%202025-12-03%20at%2012.23.24%E2%80%AFPM.png" alt="Login" width="100%" />
+      <img src="screenshots/Screenshot%202025-12-03%20at%2012.23.32%E2%80%AFPM.png" alt="Login" width="100%" />
       <br/><strong>🔐 Login Page</strong>
     </td>
     <td align="center">
-      <img src="screenshots/Screenshot%202025-12-03%20at%2012.23.32%E2%80%AFPM.png" alt="Welcome" width="100%" />
+      <img src="screenshots/Screenshot%202025-12-03%20at%2012.23.24%E2%80%AFPM.png" alt="Welcome" width="100%" />
       <br/><strong>👋 Welcome Screen</strong>
     </td>
   </tr>

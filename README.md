@@ -5,7 +5,7 @@
 <h1 align="center">🎓 Gyanika - AI-Powered Educational Voice Assistant</h1>
 
 <p align="center">
-  <strong>Your Personal AI Tutor for Competitive Exam Preparation</strong>
+  <strong>Your Personal AI Tutor for Classes 9-12 Students in India</strong>
 </p>
 
 <p align="center">
@@ -52,7 +52,7 @@
 
 ## 🌟 Overview
 
-**Gyanika** (ज्ञानिका - derived from "Gyan" meaning knowledge) is an advanced AI-powered educational voice assistant designed specifically for Indian students preparing for competitive exams like **UPSC, SSC, Banking, Railways**, and more.
+**Gyanika** (ज्ञानिका - derived from "Gyan" meaning knowledge) is an advanced AI-powered educational voice assistant designed specifically for Indian students in Classes 9-12. Whether you're studying NCERT subjects, preparing for board exams, or just want to understand concepts better - Gyanika is here to help!
 
 Built with cutting-edge technologies including **Google Gemini 2.5 Flash** for real-time voice conversations, **LiveKit** for WebRTC-based communication, and **LightRAG** for persistent conversation memory, Gyanika provides a personalized, intelligent tutoring experience.
 
@@ -60,7 +60,7 @@ Built with cutting-edge technologies including **Google Gemini 2.5 Flash** for r
 
 - **🗣️ Natural Voice Conversations** - Speak in Hindi, English, or Hinglish
 - **🧠 Long-term Memory** - Remembers your learning progress across sessions
-- **📚 Exam-Focused** - Tailored for Indian competitive exam preparation
+- **📚 NCERT Curriculum** - Covers all subjects for Classes 9-12
 - **🔐 User Authentication** - Personalized learning experience
 - **🎨 Beautiful UI** - Modern dark theme with glass-morphism effects
 - **⚡ Real-time** - Sub-second response latency with native audio

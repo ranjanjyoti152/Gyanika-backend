@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="agent-starter-react/public/ai-background.jpg" alt="Gyanika Banner" width="100%" />
+  <img src="screenshots/Screenshot 2025-12-03 at 12.23.24 PM.png" alt="Login Page" width="100%" />
 </p>
 
 <h1 align="center">🎓 Gyanika - AI-Powered Educational Voice Assistant</h1>
@@ -10,11 +10,11 @@
 
 <p align="center">
   <a href="#features">Features</a> •
+  <a href="#screenshots">Screenshots</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
-  <a href="#api-reference">API Reference</a> •
-  <a href="#contributing">Contributing</a>
+  <a href="#api-reference">API Reference</a>
 </p>
 
 <p align="center">
@@ -22,8 +22,31 @@
   <img src="https://img.shields.io/badge/Next.js-15.5-black?style=for-the-badge&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/LiveKit-Agents-purple?style=for-the-badge&logo=webrtc" alt="LiveKit" />
   <img src="https://img.shields.io/badge/Gemini-2.5_Flash-orange?style=for-the-badge&logo=google" alt="Gemini" />
-  <img src="https://img.shields.io/badge/LightRAG-Memory-green?style=for-the-badge" alt="LightRAG" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Memory-blue?style=for-the-badge&logo=postgresql" alt="PostgreSQL" />
 </p>
+
+---
+
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="screenshots/Screenshot 2025-12-03 at 12.23.24 PM.png" alt="Login" width="100%" />
+      <br/><strong>🔐 Login Page</strong>
+    </td>
+    <td align="center">
+      <img src="screenshots/Screenshot 2025-12-03 at 12.23.32 PM.png" alt="Welcome" width="100%" />
+      <br/><strong>👋 Welcome Screen</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="screenshots/Screenshot 2025-12-03 at 12.24.24 PM.png" alt="Session" width="100%" />
+      <br/><strong>🎙️ Voice Chat with Video - Real-time AI Conversation</strong>
+    </td>
+  </tr>
+</table>
 
 ---
 

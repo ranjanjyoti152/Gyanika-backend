@@ -168,8 +168,9 @@ async def entrypoint(ctx: agents.JobContext):
     logging.info("   NOTE: Conversations saved to PostgreSQL database")
     logging.info("=" * 80)
     
-    # Initialize PostgreSQL Memory System
-    memory = get_postgres_memory(user_id, user_name)
+    # Initialize PostgreSQL Memory System - force new instance for each session
+    # This ensures fresh conversation_id and proper memory recall
+    memory = get_postgres_memory(user_id, user_name, force_new=True)
     logging.info(f"🧠 PostgreSQL Memory initialized for {user_name} - ready to remember past conversations!")
     
     # Fetch past memories at session start

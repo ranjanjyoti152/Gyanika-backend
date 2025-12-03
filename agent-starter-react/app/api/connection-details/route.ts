@@ -63,28 +63,69 @@ export async function POST(req: Request) {
 
     console.log(`[connection-details] User: ${participantName} (${userId}), Room: ${roomName}`);
 
-    // Create the room first
+    // Check if room already exists
+    let roomExists = false;
+    let hasActiveAgent = false;
+    let hasHumanUser = false;
     try {
-      await roomService.createRoom({
-        name: roomName,
-        emptyTimeout: 60 * 10, // 10 minutes
-        maxParticipants: 10,
-      });
-      console.log(`Room created: ${roomName}`);
+      const rooms = await roomService.listRooms([roomName]);
+      if (rooms && rooms.length > 0) {
+        roomExists = true;
+        // Check participants in the room
+        const participants = await roomService.listParticipants(roomName);
+        
+        for (const p of participants) {
+          const isAgent = p.identity?.startsWith('agent-') || p.name?.toLowerCase().includes('gyanika');
+          if (isAgent) {
+            hasActiveAgent = true;
+          } else {
+            hasHumanUser = true;
+          }
+        }
+        
+        console.log(`Room ${roomName} exists, hasActiveAgent: ${hasActiveAgent}, hasHumanUser: ${hasHumanUser}, participants: ${participants.length}`);
+        
+        // If room exists but no human user, it's a stale room with orphan agent
+        // Delete the room so we start fresh
+        if (roomExists && hasActiveAgent && !hasHumanUser) {
+          console.log(`Deleting stale room ${roomName} with orphan agent`);
+          try {
+            await roomService.deleteRoom(roomName);
+            roomExists = false;
+            hasActiveAgent = false;
+          } catch (e) {
+            console.log(`Failed to delete stale room: ${e}`);
+          }
+        }
+      }
     } catch (e) {
-      // Room might already exist, that's ok
-      console.log(`Room creation: ${e}`);
+      console.log(`Room check failed (probably doesn't exist): ${e}`);
     }
 
-    // NOTE: We don't need explicit agent dispatch here because 
-    // the token's roomConfig already has agent configuration.
-    // Having both causes duplicate agents to join!
-    console.log(`Agent will be dispatched via token roomConfig for room: ${roomName}`);
+    // Create the room if it doesn't exist
+    if (!roomExists) {
+      try {
+        await roomService.createRoom({
+          name: roomName,
+          emptyTimeout: 60 * 10, // 10 minutes
+          maxParticipants: 10,
+        });
+        console.log(`Room created: ${roomName}`);
+      } catch (e) {
+        // Room might already exist, that's ok
+        console.log(`Room creation: ${e}`);
+      }
+    }
+
+    // Only dispatch agent if room is new or doesn't have an active agent
+    const shouldDispatchAgent = !hasActiveAgent;
+    console.log(`Room: ${roomName}, shouldDispatchAgent: ${shouldDispatchAgent}`);
 
     const participantToken = await createParticipantToken(
       { identity: participantIdentity, name: participantName, metadata },
       roomName,
-      agentName
+      agentName,
+      shouldDispatchAgent  // Only dispatch if no agent in room
     );
 
     // Return connection details
@@ -110,7 +151,8 @@ export async function POST(req: Request) {
 function createParticipantToken(
   userInfo: AccessTokenOptions,
   roomName: string,
-  agentName?: string
+  agentName?: string,
+  dispatchAgent: boolean = true
 ): Promise<string> {
   const at = new AccessToken(API_KEY, API_SECRET, {
     ...userInfo,
@@ -125,11 +167,13 @@ function createParticipantToken(
   };
   at.addGrant(grant);
 
-  // Always dispatch an agent to the room
-  // If no specific agent name, use empty string to dispatch any available agent
-  at.roomConfig = new RoomConfiguration({
-    agents: [{ agentName: agentName || '' }],
-  });
+  // Only dispatch agent if needed (new room or no agent present)
+  // This prevents duplicate agents on reconnection
+  if (dispatchAgent) {
+    at.roomConfig = new RoomConfiguration({
+      agents: [{ agentName: agentName || '' }],
+    });
+  }
 
   return at.toJwt();
 }

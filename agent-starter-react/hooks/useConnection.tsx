@@ -54,11 +54,9 @@ function ConnectionProviderInner({
     console.log('[Connection] Creating token source for user:', user?.username);
     
     return TokenSource.custom(async () => {
-      // Always create new room name
-      const newRoomName = `gyanika_room_${user?.username || user?.id || 'guest'}_${Date.now()}`;
-      roomNameRef.current = newRoomName;
-      
-      console.log('[Connection] Fetching token for room:', newRoomName);
+      // Backend generates stable room name: gyanika_room_{userId}
+      // We just pass user info, don't generate room name here
+      console.log('[Connection] Fetching token for user:', user?.username || user?.id);
       try {
         const res = await fetch('/api/connection-details', {
           method: 'POST',
@@ -69,7 +67,6 @@ function ConnectionProviderInner({
             room_config: appConfig.agentName
               ? { agents: [{ agent_name: appConfig.agentName }] }
               : undefined,
-            room_name: newRoomName,
             user_id: user?.username || user?.id,
             user_name: user?.full_name || user?.username || 'Student',
             user_email: user?.email,
@@ -82,6 +79,7 @@ function ConnectionProviderInner({
         }
         
         const data = await res.json();
+        roomNameRef.current = data.roomName;  // Store room name from backend
         console.log('[Connection] Got token, room:', data.roomName, 'identity:', data.participantIdentity);
         return data;
       } catch (error) {

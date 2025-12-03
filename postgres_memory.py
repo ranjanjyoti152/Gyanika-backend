@@ -379,11 +379,30 @@ Remember the user's learning progress and adapt explanations accordingly.
 _memory_instances: Dict[str, PostgresMemory] = {}
 
 
-def get_postgres_memory(user_id: str, user_name: str = None) -> PostgresMemory:
-    """Get or create a PostgresMemory instance for a user"""
-    if user_id not in _memory_instances:
+def get_postgres_memory(user_id: str, user_name: str = None, force_new: bool = False) -> PostgresMemory:
+    """Get or create a PostgresMemory instance for a user
+    
+    Args:
+        user_id: User identifier
+        user_name: User's display name
+        force_new: If True, always create a new instance (for new sessions)
+    """
+    if force_new or user_id not in _memory_instances:
+        logger.info(f"🧠 Creating {'new' if force_new else 'first'} PostgresMemory for {user_id}")
         _memory_instances[user_id] = PostgresMemory(user_id, user_name)
     return _memory_instances[user_id]
+
+
+def clear_memory_cache(user_id: str = None):
+    """Clear memory cache for a user or all users"""
+    global _memory_instances
+    if user_id:
+        if user_id in _memory_instances:
+            del _memory_instances[user_id]
+            logger.info(f"🗑️ Cleared memory cache for {user_id}")
+    else:
+        _memory_instances = {}
+        logger.info("🗑️ Cleared all memory cache")
 
 
 def test_connection():

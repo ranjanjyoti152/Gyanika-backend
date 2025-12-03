@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="screenshots/Screenshot 2025-12-03 at 12.23.24 PM.png" alt="Login Page" width="100%" />
+  <img src="screenshots/login.png" alt="Login Page" width="100%" />
 </p>
 
 <h1 align="center">🎓 Gyanika - AI-Powered Educational Voice Assistant</h1>
@@ -32,17 +32,17 @@
 <table>
   <tr>
     <td align="center">
-      <img src="screenshots/Screenshot 2025-12-03 at 12.23.24 PM.png" alt="Login" width="100%" />
+      <img src="screenshots/login.png" alt="Login" width="100%" />
       <br/><strong>🔐 Login Page</strong>
     </td>
     <td align="center">
-      <img src="screenshots/Screenshot 2025-12-03 at 12.23.32 PM.png" alt="Welcome" width="100%" />
+      <img src="screenshots/welcome.png" alt="Welcome" width="100%" />
       <br/><strong>👋 Welcome Screen</strong>
     </td>
   </tr>
   <tr>
     <td align="center" colspan="2">
-      <img src="screenshots/Screenshot 2025-12-03 at 12.24.24 PM.png" alt="Session" width="100%" />
+      <img src="screenshots/session.png" alt="Session" width="100%" />
       <br/><strong>🎙️ Voice Chat with Video - Real-time AI Conversation</strong>
     </td>
   </tr>

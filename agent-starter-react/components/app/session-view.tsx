@@ -32,13 +32,13 @@ const BOTTOM_VIEW_MOTION_PROPS = {
       translateY: '100%',
     },
   },
-  initial: 'hidden',
-  animate: 'visible',
-  exit: 'hidden',
+  initial: 'hidden' as const,
+  animate: 'visible' as const,
+  exit: 'hidden' as const,
   transition: {
     duration: 0.3,
     delay: 0.5,
-    ease: 'easeOut',
+    ease: 'easeOut' as const,
   },
 };
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
+import { query } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,10 +18,7 @@ export async function POST(request: NextRequest) {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
     }
 
     // Validate password length
@@ -33,10 +30,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await query(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
-      [email.toLowerCase(), username.toLowerCase()]
-    );
+    const existingUser = await query('SELECT id FROM users WHERE email = $1 OR username = $2', [
+      email.toLowerCase(),
+      username.toLowerCase(),
+    ]);
 
     if (existingUser.rows.length > 0) {
       return NextResponse.json(
@@ -50,7 +47,13 @@ export async function POST(request: NextRequest) {
       `INSERT INTO users (email, username, password_hash, full_name, exam_target, is_verified)
        VALUES ($1, $2, crypt($3, gen_salt('bf', 10)), $4, $5, TRUE)
        RETURNING id, email, username, full_name, exam_target, created_at`,
-      [email.toLowerCase(), username.toLowerCase(), password, full_name || username, exam_target || 'General']
+      [
+        email.toLowerCase(),
+        username.toLowerCase(),
+        password,
+        full_name || username,
+        exam_target || 'General',
+      ]
     );
 
     const user = result.rows[0];
@@ -81,9 +84,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

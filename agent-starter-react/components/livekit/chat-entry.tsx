@@ -38,7 +38,7 @@ export const ChatEntry = ({
     >
       <header
         className={cn(
-          'text-cyan-400/70 flex items-center gap-2 text-sm',
+          'flex items-center gap-2 text-sm text-cyan-400/70',
           messageOrigin === 'local' ? 'flex-row-reverse' : 'text-left'
         )}
       >
@@ -51,9 +51,9 @@ export const ChatEntry = ({
       <span
         className={cn(
           'max-w-4/5 rounded-2xl px-4 py-2 backdrop-blur-md',
-          messageOrigin === 'local' 
-            ? 'ml-auto bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-cyan-100' 
-            : 'mr-auto bg-cyan-950/40 border border-cyan-600/20 text-cyan-50'
+          messageOrigin === 'local'
+            ? 'ml-auto border border-cyan-500/30 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-100'
+            : 'mr-auto border border-cyan-600/20 bg-cyan-950/40 text-cyan-50'
         )}
       >
         {message}

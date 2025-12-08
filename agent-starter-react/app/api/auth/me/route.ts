@@ -7,10 +7,7 @@ export async function GET(request: NextRequest) {
     const token = authHeader?.replace('Bearer ', '');
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'Authorization token required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authorization token required' }, { status: 401 });
     }
 
     // Find valid session and user
@@ -24,10 +21,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (result.rows.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid or expired session' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 });
     }
 
     const user = result.rows[0];
@@ -47,9 +41,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Session verification error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

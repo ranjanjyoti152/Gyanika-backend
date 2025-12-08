@@ -124,7 +124,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                   }}
                   className={cn(
                     'aspect-square h-[90px] rounded-2xl transition-all duration-300',
-                    'backdrop-blur-xl bg-cyan-950/40 border border-cyan-500/30',
+                    'border border-cyan-500/30 bg-cyan-950/40 backdrop-blur-xl',
                     'shadow-lg shadow-cyan-500/10',
                     chatOpen && 'border-cyan-400/50 shadow-xl shadow-cyan-500/20'
                   )}
@@ -138,7 +138,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                   >
                     <span
                       className={cn([
-                        'bg-cyan-700/50 min-h-3 w-3 rounded-full',
+                        'min-h-3 w-3 rounded-full bg-cyan-700/50',
                         'origin-center transition-all duration-200 ease-out',
                         'data-[lk-highlighted=true]:bg-cyan-400 data-[lk-highlighted=true]:shadow-lg data-[lk-highlighted=true]:shadow-cyan-400/50',
                         'data-[lk-muted=true]:bg-cyan-900/50',
@@ -177,7 +177,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     },
                   }}
                   className={cn(
-                    'overflow-hidden drop-shadow-xl shadow-cyan-500/20 border border-cyan-500/30 bg-cyan-950/50',
+                    'overflow-hidden border border-cyan-500/30 bg-cyan-950/50 shadow-cyan-500/20 drop-shadow-xl',
                     chatOpen ? 'h-[90px]' : 'h-auto w-full'
                   )}
                 >
@@ -222,13 +222,13 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                     ...ANIMATION_TRANSITION,
                     delay: animationDelay,
                   }}
-                  className="drop-shadow-lg shadow-cyan-500/20 rounded-2xl overflow-hidden border border-cyan-500/30"
+                  className="overflow-hidden rounded-2xl border border-cyan-500/30 shadow-cyan-500/20 drop-shadow-lg"
                 >
                   <VideoTrack
                     trackRef={cameraTrack || screenShareTrack}
                     width={(cameraTrack || screenShareTrack)?.publication.dimensions?.width ?? 0}
                     height={(cameraTrack || screenShareTrack)?.publication.dimensions?.height ?? 0}
-                    className="aspect-square w-[90px] rounded-2xl object-cover bg-cyan-950/50"
+                    className="aspect-square w-[90px] rounded-2xl bg-cyan-950/50 object-cover"
                   />
                 </MotionContainer>
               )}

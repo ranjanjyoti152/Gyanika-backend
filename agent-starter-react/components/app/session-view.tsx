@@ -2,7 +2,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { useSessionContext, useSessionMessages, useVoiceAssistant } from '@livekit/components-react';
+import {
+  useSessionContext,
+  useSessionMessages,
+  useVoiceAssistant,
+} from '@livekit/components-react';
 import type { AppConfig } from '@/app-config';
 import { ChatTranscript } from '@/components/app/chat-transcript';
 import { PreConnectMessage } from '@/components/app/preconnect-message';
@@ -70,10 +74,10 @@ export const SessionView = ({
   const [chatOpen, setChatOpen] = useState(false);
   const { isConnectionActive, startDisconnectTransition } = useConnection();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  
+
   // Get agent state to show loading until agent is ready
   const { state: agentState } = useVoiceAssistant();
-  
+
   // Agent is ready when state is not 'disconnected' or 'connecting'
   const isAgentReady = agentState && !['disconnected', 'connecting'].includes(agentState);
 
@@ -97,41 +101,46 @@ export const SessionView = ({
   // Show loading screen while agent is connecting
   if (!isAgentReady) {
     return (
-      <section className="relative z-10 h-full w-full flex items-center justify-center" {...props}>
+      <section className="relative z-10 flex h-full w-full items-center justify-center" {...props}>
         {/* Content */}
-        <div className="relative z-10 text-center space-y-8 animate-fade-in-up">
+        <div className="animate-fade-in-up relative z-10 space-y-8 text-center">
           {/* Animated Logo with glow */}
-          <div className="relative animate-float">
+          <div className="animate-float relative">
             <div className="text-8xl">🎓</div>
             {/* Glowing ring */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-32 h-32 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" style={{ animationDuration: '2s' }} />
+              <div
+                className="h-32 w-32 animate-spin rounded-full border-4 border-cyan-400/30 border-t-cyan-400"
+                style={{ animationDuration: '2s' }}
+              />
             </div>
             {/* Ambient glow */}
-            <div className="absolute inset-0 flex items-center justify-center -z-10">
-              <div className="w-40 h-40 bg-cyan-500/15 rounded-full blur-2xl animate-pulse" />
+            <div className="absolute inset-0 -z-10 flex items-center justify-center">
+              <div className="h-40 w-40 animate-pulse rounded-full bg-cyan-500/15 blur-2xl" />
             </div>
           </div>
-          
+
           {/* Loading Text with glow */}
           <div className="space-y-3">
-            <h2 className="text-2xl font-bold text-cyan-100 glow-text">
+            <h2 className="glow-text text-2xl font-bold text-cyan-100">
               Gyanika is getting ready...
             </h2>
-            <p className="text-cyan-300/80 text-sm">
-              {agentState === 'connecting' ? '🔗 Connecting to your AI tutor...' : '⏳ Please wait...'}
+            <p className="text-sm text-cyan-300/80">
+              {agentState === 'connecting'
+                ? '🔗 Connecting to your AI tutor...'
+                : '⏳ Please wait...'}
             </p>
           </div>
-          
+
           {/* Animated Progress Bar */}
-          <div className="w-72 mx-auto">
-            <div className="h-1.5 bg-cyan-900/40 rounded-full overflow-hidden border border-cyan-500/20">
-              <div className="h-full bg-gradient-to-r from-cyan-500 via-blue-400 to-cyan-500 rounded-full animate-loading-bar" />
+          <div className="mx-auto w-72">
+            <div className="h-1.5 overflow-hidden rounded-full border border-cyan-500/20 bg-cyan-900/40">
+              <div className="animate-loading-bar h-full rounded-full bg-gradient-to-r from-cyan-500 via-blue-400 to-cyan-500" />
             </div>
           </div>
-          
+
           {/* Tips with glass effect */}
-          <div className="glass-panel rounded-xl px-6 py-3 max-w-sm mx-auto">
+          <div className="glass-panel mx-auto max-w-sm rounded-xl px-6 py-3">
             <p className="text-sm text-cyan-200/90">
               💡 Tip: You can speak in Hindi, English, or Hinglish!
             </p>
@@ -150,7 +159,7 @@ export const SessionView = ({
           !chatOpen && 'pointer-events-none'
         )}
       >
-        <Fade top className="absolute inset-x-0 top-0 h-20 z-10" />
+        <Fade top className="absolute inset-x-0 top-0 z-10 h-20" />
         <ScrollArea ref={scrollAreaRef} className="px-4 pt-40 pb-[150px] md:px-6 md:pb-[200px]">
           <ChatTranscript
             hidden={!chatOpen}
@@ -171,7 +180,7 @@ export const SessionView = ({
         {appConfig.isPreConnectBufferEnabled && (
           <PreConnectMessage messages={messages} className="pb-4" />
         )}
-        <div className="relative mx-auto max-w-2xl pb-3 md:pb-12 backdrop-blur-xl bg-cyan-950/30 rounded-t-2xl border border-cyan-500/20 border-b-0 px-4 pt-4">
+        <div className="relative mx-auto max-w-2xl rounded-t-2xl border border-b-0 border-cyan-500/20 bg-cyan-950/30 px-4 pt-4 pb-3 backdrop-blur-xl md:pb-12">
           <AgentControlBar
             controls={controls}
             isConnectionActive={isConnectionActive}

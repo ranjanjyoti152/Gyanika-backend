@@ -6,7 +6,7 @@ import { useConnection } from './useConnection';
 export function useAgentErrors() {
   const agent = useAgent();
   const { isConnectionActive, startDisconnectTransition } = useConnection();
-  
+
   // Track if agent was ever connected successfully
   const wasConnectedRef = useRef(false);
 
@@ -15,7 +15,7 @@ export function useAgentErrors() {
     if (agent.state !== 'failed' && agent.state !== 'initializing') {
       wasConnectedRef.current = true;
     }
-    
+
     // Only trigger disconnect if:
     // 1. Connection is active
     // 2. Agent state is 'failed'
@@ -54,7 +54,7 @@ export function useAgentErrors() {
       startDisconnectTransition();
     }
   }, [agent.state, agent.failureReasons, isConnectionActive, startDisconnectTransition]);
-  
+
   // Reset when connection becomes inactive
   useEffect(() => {
     if (!isConnectionActive) {

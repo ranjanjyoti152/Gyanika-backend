@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
+import { query } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,10 +9,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
     // Find user and verify password
@@ -25,10 +22,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (result.rows.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid email/username or password' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid email/username or password' }, { status: 401 });
     }
 
     const user = result.rows[0];
@@ -57,10 +51,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Update last login
-    await query(
-      `UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [user.id]
-    );
+    await query(`UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`, [user.id]);
 
     return NextResponse.json({
       success: true,
@@ -78,9 +69,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

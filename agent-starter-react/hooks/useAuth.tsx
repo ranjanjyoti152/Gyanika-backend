@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 // User interface
 export interface User {
@@ -18,7 +18,13 @@ interface AuthContextType {
   isLoading: boolean;
   token: string | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (name: string, email: string, password: string, classLevel?: string, school?: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (
+    name: string,
+    email: string,
+    password: string,
+    classLevel?: string,
+    school?: string
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -49,16 +55,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       const savedToken = localStorage.getItem('gyanika_token');
       const savedUser = localStorage.getItem('gyanika_user');
-      
+
       if (savedToken && savedUser) {
         try {
           // Verify token with server
           const response = await fetch('/api/auth/me', {
             headers: {
-              'Authorization': `Bearer ${savedToken}`,
+              Authorization: `Bearer ${savedToken}`,
             },
           });
-          
+
           if (response.ok) {
             const data = await response.json();
             setUser(data.user);
@@ -108,47 +114,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signup = useCallback(async (
-    name: string, 
-    email: string, 
-    password: string, 
-    classLevel?: string, 
-    school?: string
-  ) => {
-    try {
-      // Create username from email
-      const username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-      
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          username,
-          password,
-          full_name: name,
-          exam_target: classLevel ? `Class ${classLevel}` : 'General',
-        }),
-      });
+  const signup = useCallback(
+    async (name: string, email: string, password: string, classLevel?: string, school?: string) => {
+      try {
+        // Create username from email
+        const username = email
+          .split('@')[0]
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
 
-      const data = await response.json();
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            username,
+            password,
+            full_name: name,
+            exam_target: classLevel ? `Class ${classLevel}` : 'General',
+          }),
+        });
 
-      if (response.ok && data.success) {
-        setUser(data.user);
-        setToken(data.token);
-        localStorage.setItem('gyanika_token', data.token);
-        localStorage.setItem('gyanika_user', JSON.stringify(data.user));
-        return { success: true };
-      } else {
-        return { success: false, error: data.error || 'Registration failed' };
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setUser(data.user);
+          setToken(data.token);
+          localStorage.setItem('gyanika_token', data.token);
+          localStorage.setItem('gyanika_user', JSON.stringify(data.user));
+          return { success: true };
+        } else {
+          return { success: false, error: data.error || 'Registration failed' };
+        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        return { success: false, error: 'Network error. Please try again.' };
       }
-    } catch (error) {
-      console.error('Signup error:', error);
-      return { success: false, error: 'Network error. Please try again.' };
-    }
-  }, []);
+    },
+    []
+  );
 
   const logout = useCallback(async () => {
     try {

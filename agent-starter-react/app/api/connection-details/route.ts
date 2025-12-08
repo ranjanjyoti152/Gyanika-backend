@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
-import { AccessToken, type AccessTokenOptions, type VideoGrant, RoomServiceClient } from 'livekit-server-sdk';
+import {
+  AccessToken,
+  type AccessTokenOptions,
+  RoomServiceClient,
+  type VideoGrant,
+} from 'livekit-server-sdk';
 import { RoomConfiguration } from '@livekit/protocol';
 
 type ConnectionDetails = {
@@ -20,7 +25,7 @@ const livekitHost = LIVEKIT_URL?.replace('wss://', 'https://') || '';
 const roomService = new RoomServiceClient(livekitHost, API_KEY, API_SECRET);
 
 // Lock to prevent duplicate room creation for same user
-const pendingRooms = new Map<string, Promise<any>>();
+const pendingRooms = new Map<string, Promise<void>>();
 
 // don't cache the results
 export const revalidate = 0;
@@ -40,17 +45,18 @@ export async function POST(req: Request) {
     // Parse request body
     const body = await req.json();
     const agentName: string = body?.room_config?.agents?.[0]?.agent_name || '';
-    
+
     // Get user info from request (for persistent identity)
     const userName: string = body?.user_name || 'Student';
-    const userId: string = body?.user_id || `user_${userName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const userId: string =
+      body?.user_id || `user_${userName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
     const userEmail: string = body?.user_email || '';
-    const userDbId: string = body?.user_db_id || userId;  // PostgreSQL UUID
+    const userDbId: string = body?.user_db_id || userId; // PostgreSQL UUID
 
     // Use provided user info for persistent identity
     const participantName = userName;
-    const participantIdentity = userId;  // Use username as identity for agent to recognize
-    
+    const participantIdentity = userId; // Use username as identity for agent to recognize
+
     // USER-SPECIFIC ROOM: Each user gets their own stable room
     // Room name is based on userId (no timestamp) so reconnecting joins same room
     // This prevents users from talking to each other while still having 1 agent per user
@@ -58,8 +64,8 @@ export async function POST(req: Request) {
 
     // Build metadata with user info for the agent
     const metadata = JSON.stringify({
-      user_id: userId,           // Username for agent to identify
-      user_db_id: userDbId,      // PostgreSQL UUID
+      user_id: userId, // Username for agent to identify
+      user_db_id: userDbId, // PostgreSQL UUID
       name: participantName,
       email: userEmail,
     });
@@ -75,7 +81,7 @@ export async function POST(req: Request) {
         { identity: participantIdentity, name: participantName, metadata },
         roomName,
         agentName,
-        false  // Don't dispatch agent
+        false // Don't dispatch agent
       );
       const data: ConnectionDetails = {
         serverUrl: LIVEKIT_URL,
@@ -93,12 +99,12 @@ export async function POST(req: Request) {
       try {
         await roomService.deleteRoom(roomName);
         console.log(`Deleted existing room: ${roomName}`);
-      } catch (e) {
+      } catch (_e) {
         console.log(`Room ${roomName} doesn't exist or already deleted`);
       }
 
       // Small delay to ensure room is fully deleted
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Create fresh room
       try {
@@ -114,7 +120,7 @@ export async function POST(req: Request) {
     })();
 
     pendingRooms.set(roomName, setupPromise);
-    
+
     try {
       await setupPromise;
     } finally {
@@ -130,7 +136,7 @@ export async function POST(req: Request) {
       { identity: participantIdentity, name: participantName, metadata },
       roomName,
       agentName,
-      shouldDispatchAgent  // Only dispatch if no agent in room
+      shouldDispatchAgent // Only dispatch if no agent in room
     );
 
     // Return connection details

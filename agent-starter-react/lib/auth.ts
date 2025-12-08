@@ -35,16 +35,18 @@ export function registerUser(
   school?: string
 ): { success: boolean; error?: string; user?: User } {
   const users = getUsers();
-  
+
   // Check if email already exists
-  const existingUser = Object.values(users).find(u => u.email.toLowerCase() === email.toLowerCase());
+  const existingUser = Object.values(users).find(
+    (u) => u.email.toLowerCase() === email.toLowerCase()
+  );
   if (existingUser) {
     return { success: false, error: 'Email already registered. Please login.' };
   }
 
   // Create user ID from email
   const userId = `user_${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-  
+
   const user: User = {
     id: userId,
     name,
@@ -60,10 +62,10 @@ export function registerUser(
   const passwords = getPasswords();
   passwords[userId] = btoa(password); // Basic encoding, NOT secure for production
   savePasswords(passwords);
-  
+
   saveUsers(users);
   setCurrentUser(user);
-  
+
   return { success: true, user };
 }
 
@@ -74,10 +76,10 @@ export function loginUser(
 ): { success: boolean; error?: string; user?: User } {
   const users = getUsers();
   const passwords = getPasswords();
-  
+
   // Find user by email
-  const user = Object.values(users).find(u => u.email.toLowerCase() === email.toLowerCase());
-  
+  const user = Object.values(users).find((u) => u.email.toLowerCase() === email.toLowerCase());
+
   if (!user) {
     return { success: false, error: 'Email not found. Please signup first.' };
   }

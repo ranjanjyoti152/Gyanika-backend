@@ -56,14 +56,14 @@ export function TrackSelector({
             <span
               className={cn([
                 'h-full w-0.5 origin-center rounded-2xl transition-all duration-200',
-                'group-data-[state=on]/track:bg-cyan-400 group-data-[state=off]/track:bg-red-400',
+                'group-data-[state=off]/track:bg-red-400 group-data-[state=on]/track:bg-cyan-400',
                 'data-lk-muted:bg-cyan-800',
               ])}
             />
           </BarVisualizer>
         )}
       </TrackToggle>
-      <hr className="bg-cyan-500/30 peer-data-[state=off]/track:bg-red-400/30 relative z-10 -mr-px hidden h-4 w-px border-none has-[~_button]:block" />
+      <hr className="relative z-10 -mr-px hidden h-4 w-px border-none bg-cyan-500/30 peer-data-[state=off]/track:bg-red-400/30 has-[~_button]:block" />
       <TrackDeviceSelect
         size="sm"
         kind={kind}

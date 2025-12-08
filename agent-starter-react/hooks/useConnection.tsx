@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { TokenSource } from 'livekit-client';
 import { SessionProvider, useSession } from '@livekit/components-react';
 import type { AppConfig } from '@/app-config';
@@ -39,11 +39,11 @@ interface ConnectionProviderInnerProps extends ConnectionProviderProps {
 }
 
 // Inner component that handles the session
-function ConnectionProviderInner({ 
-  appConfig, 
+function ConnectionProviderInner({
+  appConfig,
   user,
   children,
-  onSessionEnd
+  onSessionEnd,
 }: ConnectionProviderInnerProps) {
   const [isConnectionActive, setIsConnectionActive] = useState(false);
   const [shouldConnect, setShouldConnect] = useState(false);
@@ -52,7 +52,7 @@ function ConnectionProviderInner({
   // Create token source with user info
   const tokenSource = useMemo(() => {
     console.log('[Connection] Creating token source for user:', user?.username);
-    
+
     return TokenSource.custom(async () => {
       // Backend generates stable room name: gyanika_room_{userId}
       // We just pass user info, don't generate room name here
@@ -73,14 +73,19 @@ function ConnectionProviderInner({
             user_db_id: user?.id,
           }),
         });
-        
+
         if (!res.ok) {
           throw new Error(`Failed to get connection details: ${res.status}`);
         }
-        
+
         const data = await res.json();
-        roomNameRef.current = data.roomName;  // Store room name from backend
-        console.log('[Connection] Got token, room:', data.roomName, 'identity:', data.participantIdentity);
+        roomNameRef.current = data.roomName; // Store room name from backend
+        console.log(
+          '[Connection] Got token, room:',
+          data.roomName,
+          'identity:',
+          data.participantIdentity
+        );
         return data;
       } catch (error) {
         console.error('[Connection] Error fetching token:', error);
@@ -142,22 +147,22 @@ function ConnectionProviderInner({
 // Wrapper that remounts the inner component on each new session
 export function ConnectionProvider({ appConfig, user, children }: ConnectionProviderProps) {
   const [sessionKey, setSessionKey] = useState(0);
-  
+
   // Key combines user id and session key to force remount
   const key = `${user?.id || 'no-user'}-session-${sessionKey}`;
-  
+
   console.log('[ConnectionProvider] Rendering with key:', key);
-  
+
   const handleSessionEnd = () => {
     console.log('[ConnectionProvider] Session ended, will remount on next connect');
     // Increment key to force remount on next render
-    setSessionKey(prev => prev + 1);
+    setSessionKey((prev) => prev + 1);
   };
-  
+
   return (
-    <ConnectionProviderInner 
+    <ConnectionProviderInner
       key={key}
-      appConfig={appConfig} 
+      appConfig={appConfig}
       user={user}
       onSessionEnd={handleSessionEnd}
     >

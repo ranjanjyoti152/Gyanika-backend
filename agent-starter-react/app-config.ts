@@ -22,7 +22,8 @@ export interface AppConfig {
 export const APP_CONFIG_DEFAULTS: AppConfig = {
   companyName: 'Gyanika',
   pageTitle: 'Gyanika - AI Learning Assistant',
-  pageDescription: 'Your AI learning assistant for Classes 9-12. Get help with NCERT curriculum subjects.',
+  pageDescription:
+    'Your AI learning assistant for Classes 9-12. Get help with NCERT curriculum subjects.',
 
   supportsChatInput: true,
   supportsVideoInput: true,

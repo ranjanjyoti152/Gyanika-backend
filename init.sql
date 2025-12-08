@@ -124,16 +124,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Insert a test user (password: test123)
-INSERT INTO users (email, username, password_hash, full_name, exam_target, is_verified)
-VALUES (
-    'test@gyanika.com',
-    'testuser',
-    crypt('test123', gen_salt('bf', 10)),
-    'Test User',
-    'UPSC',
-    TRUE
-);
+-- Note: test user removed to avoid committing plaintext/password seed data
 
 COMMENT ON TABLE users IS 'Stores user account information';
 COMMENT ON TABLE sessions IS 'Stores active user sessions';

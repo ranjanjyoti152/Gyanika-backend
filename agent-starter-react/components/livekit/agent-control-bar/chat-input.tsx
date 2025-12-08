@@ -16,10 +16,10 @@ const MOTION_PROPS = {
       marginBottom: 12,
     },
   },
-  initial: 'hidden',
+  initial: 'hidden' as const,
   transition: {
     duration: 0.3,
-    ease: 'easeOut',
+    ease: 'easeOut' as const,
   },
 };
 

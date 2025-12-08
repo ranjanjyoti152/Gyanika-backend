@@ -19,12 +19,12 @@ const VIEW_MOTION_PROPS = {
       opacity: 0,
     },
   },
-  initial: 'hidden',
-  animate: 'visible',
-  exit: 'hidden',
+  initial: 'hidden' as const,
+  animate: 'visible' as const,
+  exit: 'hidden' as const,
   transition: {
     duration: 0.5,
-    ease: 'linear',
+    ease: 'linear' as const,
   },
 };
 

@@ -30,32 +30,67 @@ export async function sendOTPEmail(
       to,
       subject: '🎓 Verify Your Gyanika Account',
       html: `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #020617; border-radius: 20px; border: 2px solid #0e7490;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <div style="font-size: 56px; margin-bottom: 10px;">🎓</div>
-            <h1 style="color: #22d3ee; margin: 0; font-size: 32px; text-shadow: 0 0 20px rgba(34, 211, 238, 0.5);">Gyanika</h1>
-            <p style="color: #67e8f9; margin-top: 8px; font-size: 14px;">Your AI Learning Assistant</p>
-          </div>
-          
-          <div style="background-color: #0c4a6e; border: 2px solid #0891b2; padding: 35px; border-radius: 16px; text-align: center; margin-bottom: 25px;">
-            <p style="color: #e0f2fe; font-size: 18px; margin: 0 0 25px 0; font-weight: 500;">Your verification code is:</p>
-            <div style="background: linear-gradient(135deg, #0891b2 0%, #0284c7 100%); padding: 25px 50px; border-radius: 12px; display: inline-block; box-shadow: 0 8px 30px rgba(8, 145, 178, 0.6);">
-              <span style="font-size: 48px; font-weight: bold; letter-spacing: 14px; color: #ffffff;">` + otp + `</span>
-            </div>
-            <p style="color: #7dd3fc; font-size: 14px; margin-top: 25px;">⏱️ This code expires in 10 minutes</p>
-          </div>
-          
-          <div style="background-color: #0f172a; border: 1px solid #334155; padding: 20px; border-radius: 12px; margin-bottom: 25px;">
-            <p style="color: #e2e8f0; margin: 0; font-size: 14px; line-height: 1.7; text-align: center;">
-              Enter this code on the verification page to complete your registration and start your learning journey with Gyanika!
-            </p>
-          </div>
-          
-          <div style="text-align: center; padding-top: 15px; border-top: 1px solid #1e293b;">
-            <p style="color: #94a3b8; font-size: 12px; margin: 10px 0;">If you didn't request this code, please ignore this email.</p>
-            <p style="color: #22d3ee; font-size: 12px; margin: 0;">© ` + new Date().getFullYear() + ` Gyanika - Knowledge is Power 🎯</p>
-          </div>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        </head>
+        <body style="margin: 0; padding: 10px; background-color: #0f172a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 500px; margin: 0 auto;">
+            <tr>
+              <td style="background-color: #020617; border-radius: 16px; border: 2px solid #0e7490; padding: 25px 20px;">
+                
+                <!-- Header -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                  <tr>
+                    <td style="text-align: center; padding-bottom: 25px;">
+                      <div style="font-size: 50px;">🎓</div>
+                      <h1 style="color: #22d3ee; margin: 10px 0 5px 0; font-size: 26px;">Gyanika</h1>
+                      <p style="color: #67e8f9; margin: 0; font-size: 13px;">Your AI Learning Assistant</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- OTP Box -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                  <tr>
+                    <td style="background-color: #0c4a6e; border: 2px solid #0891b2; border-radius: 12px; padding: 25px 15px; text-align: center;">
+                      <p style="color: #e0f2fe; font-size: 16px; margin: 0 0 20px 0;">Your verification code is:</p>
+                      <div style="background: linear-gradient(135deg, #0891b2 0%, #0284c7 100%); padding: 18px 25px; border-radius: 10px; display: inline-block;">
+                        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #ffffff;">` + otp + `</span>
+                      </div>
+                      <p style="color: #7dd3fc; font-size: 13px; margin: 20px 0 0 0;">⏱️ Expires in 10 minutes</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Info -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 20px;">
+                  <tr>
+                    <td style="background-color: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 15px;">
+                      <p style="color: #cbd5e1; margin: 0; font-size: 13px; line-height: 1.6; text-align: center;">
+                        Enter this code to verify your email and start learning with Gyanika!
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Footer -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 20px; border-top: 1px solid #1e293b; padding-top: 15px;">
+                  <tr>
+                    <td style="text-align: center;">
+                      <p style="color: #64748b; font-size: 11px; margin: 0 0 8px 0;">If you didn't request this, ignore this email.</p>
+                      <p style="color: #22d3ee; font-size: 11px; margin: 0;">© ` + new Date().getFullYear() + ` Gyanika 🎯</p>
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `,
     };
 

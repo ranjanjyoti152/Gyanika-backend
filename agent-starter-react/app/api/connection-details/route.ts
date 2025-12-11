@@ -145,66 +145,19 @@ export async function POST(req: Request) {
       return NextResponse.json(data, { headers: new Headers({ 'Cache-Control': 'no-store' }) });
     }
 
-    // Check if room already exists
-    let roomExists = false;
-    let agentInRoom = false;
-    
-    try {
-      const rooms = await roomService.listRooms([roomName]);
-      if (rooms && rooms.length > 0) {
-        roomExists = true;
-        console.log(`[connection-details] Room ${roomName} already exists`);
-        
-        // Check if agent is in the room
-        try {
-          const participants = await roomService.listParticipants(roomName);
-          for (const p of participants) {
-            if (p.identity?.startsWith('agent-') || p.kind === 1) { // 1 = AGENT in protobuf
-              agentInRoom = true;
-              console.log(`[connection-details] Agent already in room: ${p.identity}`);
-              break;
-            }
-          }
-        } catch (e) {
-          console.log(`[connection-details] Error checking participants: ${e}`);
-        }
-      }
-    } catch (e) {
-      console.log(`[connection-details] Room check error: ${e}`);
-    }
-
-    // If room exists with agent, just return token (no room recreation)
-    if (roomExists && agentInRoom) {
-      console.log(`[connection-details] Joining existing room with agent: ${roomName}`);
-      const participantToken = await createParticipantToken(
-        { identity: participantIdentity, name: participantName, metadata },
-        roomName,
-        agentName,
-        false // Agent already there
-      );
-      const data: ConnectionDetails = {
-        serverUrl: LIVEKIT_URL,
-        roomName,
-        participantToken: participantToken,
-        participantName,
-        participantIdentity,
-      };
-      return NextResponse.json(data, { headers: new Headers({ 'Cache-Control': 'no-store' }) });
-    }
-
-    // Room doesn't exist or no agent - create fresh room with agent
+    // ALWAYS delete existing room and create fresh one
+    // This ensures agent connects properly after user ends call and rejoins
     const setupPromise = (async () => {
-      // Delete existing room if exists (to ensure fresh agent)
-      if (roomExists) {
-        try {
-          await roomService.deleteRoom(roomName);
-          console.log(`[connection-details] Deleted existing room: ${roomName}`);
-        } catch (_e) {
-          console.log(`[connection-details] Room ${roomName} delete failed`);
-        }
-        // Wait for room to be fully deleted
-        await new Promise((resolve) => setTimeout(resolve, 300));
+      // Delete existing room to get fresh agent connection
+      try {
+        await roomService.deleteRoom(roomName);
+        console.log(`[connection-details] Deleted existing room: ${roomName}`);
+      } catch (_e) {
+        console.log(`[connection-details] Room ${roomName} doesn't exist or already deleted`);
       }
+
+      // Small delay to ensure room is fully deleted
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Create fresh room
       try {
@@ -224,7 +177,7 @@ export async function POST(req: Request) {
     try {
       await setupPromise;
     } finally {
-      // Remove from pending after 10 seconds (longer to prevent race conditions)
+      // Remove from pending after 10 seconds
       setTimeout(() => pendingRooms.delete(roomName), 10000);
     }
 
@@ -236,7 +189,7 @@ export async function POST(req: Request) {
       { identity: participantIdentity, name: participantName, metadata },
       roomName,
       agentName,
-      shouldDispatchAgent // Only dispatch if no agent in room
+      shouldDispatchAgent
     );
 
     // Return connection details

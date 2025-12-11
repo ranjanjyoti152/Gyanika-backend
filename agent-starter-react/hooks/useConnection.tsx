@@ -141,11 +141,24 @@ function ConnectionProviderInner({
   useEffect(() => {
     console.log('[Connection] Session connection state:', session.connectionState);
     
-    // If session disconnects unexpectedly while we think we're connected, trigger reconnection
+    // Only show error if we were actively connected and then disconnected
+    // Don't show error during initial connection attempts
     if (session.connectionState === 'disconnected' && isConnectionActive && !isReconnecting) {
-      console.warn('[Connection] Session disconnected unexpectedly, will attempt reconnect');
-      // Don't auto-reconnect immediately, let user know there's an issue
-      setConnectionError('Connection lost. Click to reconnect.');
+      // Only set error after a delay to allow for normal reconnection
+      const timeoutId = setTimeout(() => {
+        // Check again if still disconnected
+        if (session.connectionState === 'disconnected' && isConnectionActive) {
+          console.warn('[Connection] Session disconnected unexpectedly, showing error');
+          setConnectionError('Connection lost. Click to reconnect.');
+        }
+      }, 5000); // Wait 5 seconds before showing error
+      
+      return () => clearTimeout(timeoutId);
+    }
+    
+    // Clear error when connected
+    if (session.connectionState === 'connected') {
+      setConnectionError(null);
     }
   }, [session.connectionState, isConnectionActive, isReconnecting]);
 

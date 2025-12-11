@@ -17,14 +17,16 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   token: string | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; requiresOtp?: boolean; email?: string }>;
   signup: (
     name: string,
     email: string,
     password: string,
     classLevel?: string,
     school?: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; requiresOtp?: boolean; email?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  resendOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -34,7 +36,9 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   login: async () => ({ success: false }),
   signup: async () => ({ success: false }),
-  logout: () => {},
+  verifyOtp: async () => ({ success: false }),
+  resendOtp: async () => ({ success: false }),
+  logout: () => { },
 });
 
 export function useAuth() {
@@ -106,6 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('gyanika_user', JSON.stringify(data.user));
         return { success: true };
       } else {
+        // Check if user needs OTP verification
+        if (data.requiresOtp) {
+          return { success: false, error: data.error, requiresOtp: true, email: data.email };
+        }
         return { success: false, error: data.error || 'Login failed' };
       }
     } catch (error) {
@@ -140,6 +148,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json();
 
         if (response.ok && data.success) {
+          // Check if OTP verification is required
+          if (data.requiresOtp) {
+            return { success: true, requiresOtp: true, email: data.email };
+          }
+          // Direct login (for backwards compatibility if OTP is disabled)
           setUser(data.user);
           setToken(data.token);
           localStorage.setItem('gyanika_token', data.token);
@@ -155,6 +168,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     []
   );
+
+  const verifyOtp = useCallback(async (email: string, otp: string) => {
+    try {
+      const response = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setUser(data.user);
+        setToken(data.token);
+        localStorage.setItem('gyanika_token', data.token);
+        localStorage.setItem('gyanika_user', JSON.stringify(data.user));
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'OTP verification failed' };
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  }, []);
+
+  const resendOtp = useCallback(async (email: string) => {
+    try {
+      const response = await fetch('/api/auth/resend-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'Failed to resend OTP' };
+      }
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -178,7 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, token, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, token, login, signup, verifyOtp, resendOtp, logout }}>
       {children}
     </AuthContext.Provider>
   );

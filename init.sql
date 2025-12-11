@@ -131,3 +131,18 @@ COMMENT ON TABLE sessions IS 'Stores active user sessions';
 COMMENT ON TABLE conversations IS 'Stores voice chat conversation metadata';
 COMMENT ON TABLE messages IS 'Stores individual messages in conversations';
 COMMENT ON TABLE learning_progress IS 'Tracks user learning progress by topic';
+
+-- Email OTP tokens table for verification during signup
+CREATE TABLE email_otp_tokens (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) NOT NULL,
+    otp_code VARCHAR(6) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_otp_email ON email_otp_tokens(email);
+CREATE INDEX idx_otp_expires ON email_otp_tokens(expires_at);
+
+COMMENT ON TABLE email_otp_tokens IS 'Stores OTP codes for email verification during signup';

@@ -35,16 +35,16 @@ const RATE_LIMIT_WINDOW = 60000; // Per 60 seconds
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
   const userLimit = rateLimitMap.get(userId);
-  
+
   if (!userLimit || now > userLimit.resetTime) {
     rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
     return true;
   }
-  
+
   if (userLimit.count >= RATE_LIMIT_MAX) {
     return false;
   }
-  
+
   userLimit.count++;
   return true;
 }
@@ -86,9 +86,9 @@ export async function POST(req: Request) {
 
     // Get user info from request (for persistent identity)
     // Sanitize inputs to prevent injection
-    const sanitize = (str: string): string => 
+    const sanitize = (str: string): string =>
       str.replace(/[^a-zA-Z0-9_@.\-\s]/g, '').substring(0, 100);
-    
+
     const userName: string = sanitize(body?.user_name || 'Student');
     const userId: string = sanitize(
       body?.user_id || `user_${userName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     // Rate limiting check
     if (!checkRateLimit(userId)) {
       console.warn(`[connection-details] Rate limit exceeded for user: ${userId}`);
-      return new NextResponse('Too many requests. Please wait before reconnecting.', { 
+      return new NextResponse('Too many requests. Please wait before reconnecting.', {
         status: 429,
         headers: { 'Retry-After': '60' }
       });
@@ -234,7 +234,8 @@ function createParticipantToken(
   // Only dispatch agent if needed (new room or no agent present)
   // This prevents duplicate agents on reconnection
   if (dispatchAgent) {
-    at.roomConfig = new RoomConfiguration({
+    // Type assertion needed due to @livekit/protocol version mismatch between dependencies
+    (at as { roomConfig: unknown }).roomConfig = new RoomConfiguration({
       agents: [{ agentName: agentName || '' }],
     });
   }

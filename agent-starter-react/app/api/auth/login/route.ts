@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     // Find user and verify password
     const result = await query(
-      `SELECT id, email, username, full_name, exam_target, preferred_language, is_active
+      `SELECT id, email, username, full_name, exam_target, preferred_language, is_active, is_verified
        FROM users 
        WHERE (email = $1 OR username = $1) 
        AND password_hash = crypt($2, password_hash)`,
@@ -26,6 +26,18 @@ export async function POST(request: NextRequest) {
     }
 
     const user = result.rows[0];
+
+    // Check if email is verified
+    if (!user.is_verified) {
+      return NextResponse.json(
+        {
+          error: 'Please verify your email before logging in',
+          requiresOtp: true,
+          email: user.email
+        },
+        { status: 403 }
+      );
+    }
 
     // Check if user is active
     if (!user.is_active) {

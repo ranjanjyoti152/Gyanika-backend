@@ -72,7 +72,7 @@ export const SessionView = ({
   const session = useSessionContext();
   const { messages } = useSessionMessages(session);
   const [chatOpen, setChatOpen] = useState(false);
-  const { isConnectionActive, startDisconnectTransition } = useConnection();
+  const { isConnectionActive, startDisconnectTransition, connectionError, reconnect, isReconnecting } = useConnection();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   // Get agent state to show loading until agent is ready
@@ -106,38 +106,60 @@ export const SessionView = ({
         <div className="animate-fade-in-up relative z-10 space-y-8 text-center">
           {/* Animated Logo with glow */}
           <div className="animate-float relative">
-            <div className="text-8xl">🎓</div>
+            <div className="text-8xl">{connectionError ? '⚠️' : '🎓'}</div>
             {/* Glowing ring */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="h-32 w-32 animate-spin rounded-full border-4 border-cyan-400/30 border-t-cyan-400"
-                style={{ animationDuration: '2s' }}
-              />
-            </div>
+            {!connectionError && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div
+                  className="h-32 w-32 animate-spin rounded-full border-4 border-cyan-400/30 border-t-cyan-400"
+                  style={{ animationDuration: '2s' }}
+                />
+              </div>
+            )}
             {/* Ambient glow */}
             <div className="absolute inset-0 -z-10 flex items-center justify-center">
-              <div className="h-40 w-40 animate-pulse rounded-full bg-cyan-500/15 blur-2xl" />
+              <div className={`h-40 w-40 animate-pulse rounded-full ${connectionError ? 'bg-red-500/15' : 'bg-cyan-500/15'} blur-2xl`} />
             </div>
           </div>
 
           {/* Loading Text with glow */}
           <div className="space-y-3">
-            <h2 className="glow-text text-2xl font-bold text-cyan-100">
-              Gyanika is getting ready...
+            <h2 className={`glow-text text-2xl font-bold ${connectionError ? 'text-red-100' : 'text-cyan-100'}`}>
+              {connectionError ? 'Connection Error' : 'Gyanika is getting ready...'}
             </h2>
-            <p className="text-sm text-cyan-300/80">
-              {agentState === 'connecting'
-                ? '🔗 Connecting to your AI tutor...'
-                : '⏳ Please wait...'}
+            <p className={`text-sm ${connectionError ? 'text-red-300/80' : 'text-cyan-300/80'}`}>
+              {connectionError 
+                ? connectionError
+                : agentState === 'connecting'
+                  ? '🔗 Connecting to your AI tutor...'
+                  : '⏳ Please wait...'}
             </p>
           </div>
 
-          {/* Animated Progress Bar */}
-          <div className="mx-auto w-72">
-            <div className="h-1.5 overflow-hidden rounded-full border border-cyan-500/20 bg-cyan-900/40">
-              <div className="animate-loading-bar h-full rounded-full bg-gradient-to-r from-cyan-500 via-blue-400 to-cyan-500" />
+          {/* Animated Progress Bar or Retry Button */}
+          {connectionError ? (
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={reconnect}
+                disabled={isReconnecting}
+                className="rounded-lg bg-cyan-600 px-6 py-2 font-semibold text-white transition-colors hover:bg-cyan-500 disabled:opacity-50"
+              >
+                {isReconnecting ? 'Reconnecting...' : 'Retry Connection'}
+              </button>
+              <button
+                onClick={startDisconnectTransition}
+                className="rounded-lg border border-cyan-500/30 px-6 py-2 font-semibold text-cyan-300 transition-colors hover:bg-cyan-900/30"
+              >
+                Go Back
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="mx-auto w-72">
+              <div className="h-1.5 overflow-hidden rounded-full border border-cyan-500/20 bg-cyan-900/40">
+                <div className="animate-loading-bar h-full rounded-full bg-gradient-to-r from-cyan-500 via-blue-400 to-cyan-500" />
+              </div>
+            </div>
+          )}
 
           {/* Tips with glass effect */}
           <div className="glass-panel mx-auto max-w-sm rounded-xl px-6 py-3">

@@ -27,6 +27,38 @@ const roomService = new RoomServiceClient(livekitHost, API_KEY, API_SECRET);
 // Lock to prevent duplicate room creation for same user
 const pendingRooms = new Map<string, Promise<void>>();
 
+// Rate limiting to prevent abuse
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 10; // Max 10 requests
+const RATE_LIMIT_WINDOW = 60000; // Per 60 seconds
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const userLimit = rateLimitMap.get(userId);
+  
+  if (!userLimit || now > userLimit.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (userLimit.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  userLimit.count++;
+  return true;
+}
+
+// Cleanup old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 60000);
+
 // don't cache the results
 export const revalidate = 0;
 
@@ -42,16 +74,36 @@ export async function POST(req: Request) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
 
-    // Parse request body
-    const body = await req.json();
+    // Parse request body with error handling
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new NextResponse('Invalid JSON body', { status: 400 });
+    }
+
     const agentName: string = body?.room_config?.agents?.[0]?.agent_name || '';
 
     // Get user info from request (for persistent identity)
-    const userName: string = body?.user_name || 'Student';
-    const userId: string =
-      body?.user_id || `user_${userName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-    const userEmail: string = body?.user_email || '';
-    const userDbId: string = body?.user_db_id || userId; // PostgreSQL UUID
+    // Sanitize inputs to prevent injection
+    const sanitize = (str: string): string => 
+      str.replace(/[^a-zA-Z0-9_@.\-\s]/g, '').substring(0, 100);
+    
+    const userName: string = sanitize(body?.user_name || 'Student');
+    const userId: string = sanitize(
+      body?.user_id || `user_${userName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+    );
+    const userEmail: string = sanitize(body?.user_email || '');
+    const userDbId: string = sanitize(body?.user_db_id || userId); // PostgreSQL UUID
+
+    // Rate limiting check
+    if (!checkRateLimit(userId)) {
+      console.warn(`[connection-details] Rate limit exceeded for user: ${userId}`);
+      return new NextResponse('Too many requests. Please wait before reconnecting.', { 
+        status: 429,
+        headers: { 'Retry-After': '60' }
+      });
+    }
 
     // Use provided user info for persistent identity
     const participantName = userName;
@@ -93,18 +145,66 @@ export async function POST(req: Request) {
       return NextResponse.json(data, { headers: new Headers({ 'Cache-Control': 'no-store' }) });
     }
 
-    // Create a promise for this room setup
-    const setupPromise = (async () => {
-      // Delete existing room to prevent duplicate agents
-      try {
-        await roomService.deleteRoom(roomName);
-        console.log(`Deleted existing room: ${roomName}`);
-      } catch (_e) {
-        console.log(`Room ${roomName} doesn't exist or already deleted`);
+    // Check if room already exists
+    let roomExists = false;
+    let agentInRoom = false;
+    
+    try {
+      const rooms = await roomService.listRooms([roomName]);
+      if (rooms && rooms.length > 0) {
+        roomExists = true;
+        console.log(`[connection-details] Room ${roomName} already exists`);
+        
+        // Check if agent is in the room
+        try {
+          const participants = await roomService.listParticipants(roomName);
+          for (const p of participants) {
+            if (p.identity?.startsWith('agent-') || p.kind === 1) { // 1 = AGENT in protobuf
+              agentInRoom = true;
+              console.log(`[connection-details] Agent already in room: ${p.identity}`);
+              break;
+            }
+          }
+        } catch (e) {
+          console.log(`[connection-details] Error checking participants: ${e}`);
+        }
       }
+    } catch (e) {
+      console.log(`[connection-details] Room check error: ${e}`);
+    }
 
-      // Small delay to ensure room is fully deleted
-      await new Promise((resolve) => setTimeout(resolve, 200));
+    // If room exists with agent, just return token (no room recreation)
+    if (roomExists && agentInRoom) {
+      console.log(`[connection-details] Joining existing room with agent: ${roomName}`);
+      const participantToken = await createParticipantToken(
+        { identity: participantIdentity, name: participantName, metadata },
+        roomName,
+        agentName,
+        false // Agent already there
+      );
+      const data: ConnectionDetails = {
+        serverUrl: LIVEKIT_URL,
+        roomName,
+        participantToken: participantToken,
+        participantName,
+        participantIdentity,
+      };
+      return NextResponse.json(data, { headers: new Headers({ 'Cache-Control': 'no-store' }) });
+    }
+
+    // Room doesn't exist or no agent - create fresh room with agent
+    const setupPromise = (async () => {
+      // Delete existing room if exists (to ensure fresh agent)
+      if (roomExists) {
+        try {
+          await roomService.deleteRoom(roomName);
+          console.log(`[connection-details] Deleted existing room: ${roomName}`);
+        } catch (_e) {
+          console.log(`[connection-details] Room ${roomName} delete failed`);
+        }
+        // Wait for room to be fully deleted
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
 
       // Create fresh room
       try {
@@ -113,9 +213,9 @@ export async function POST(req: Request) {
           emptyTimeout: 60 * 5, // 5 minutes
           maxParticipants: 5,
         });
-        console.log(`Room created: ${roomName}`);
+        console.log(`[connection-details] Room created: ${roomName}`);
       } catch (e) {
-        console.log(`Room creation: ${e}`);
+        console.log(`[connection-details] Room creation: ${e}`);
       }
     })();
 
@@ -124,13 +224,13 @@ export async function POST(req: Request) {
     try {
       await setupPromise;
     } finally {
-      // Remove from pending after 5 seconds (allow reconnects to use same room)
-      setTimeout(() => pendingRooms.delete(roomName), 5000);
+      // Remove from pending after 10 seconds (longer to prevent race conditions)
+      setTimeout(() => pendingRooms.delete(roomName), 10000);
     }
 
     // Always dispatch agent for fresh room
     const shouldDispatchAgent = true;
-    console.log(`Room: ${roomName}, shouldDispatchAgent: ${shouldDispatchAgent}`);
+    console.log(`[connection-details] Room: ${roomName}, shouldDispatchAgent: ${shouldDispatchAgent}`);
 
     const participantToken = await createParticipantToken(
       { identity: participantIdentity, name: participantName, metadata },

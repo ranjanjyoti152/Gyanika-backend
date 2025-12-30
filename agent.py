@@ -33,7 +33,7 @@ class Assistant(Agent):
         super().__init__(
             instructions=AGENT_INSTRUCTION,
             llm=google.beta.realtime.RealtimeModel(
-                model="models/gemini-2.5-flash-native-audio-preview-09-2025",
+                model="models/gemini-2.5-flash-native-audio-preview-12-2025cd",
                 voice="Zephyr",  # Female Hindi voice with Indian accent - perfect for Gyanika
                 temperature=0.8,  # Balanced temperature for educational responses
             ),
@@ -471,20 +471,24 @@ async def request_fnc(req: agents.JobRequest) -> None:
         logging.error(f"❌ Failed to accept job for room {req.room.name}: {e}")
 
 
+# Custom load function - always report as available (module level for pickle)
+def load_fnc() -> float:
+    """Return 0 to always accept new jobs"""
+    return 0.0
+
+# Prewarm function to initialize processes (module level for pickle)
+async def prewarm_fnc(proc: agents.JobProcess):
+    """Initialize process before job assignment"""
+    logging.info(f"🔥 Prewarming process: {proc.pid}")
+
+
 if __name__ == "__main__":
-    from livekit.agents import JobExecutorType
-    
     agents.cli.run_app(
         agents.WorkerOptions(
             entrypoint_fnc=entrypoint,
             request_fnc=request_fnc,
-            # CRITICAL: Use THREAD executor to minimize sessions/billing
-            # THREAD = All jobs run in same process (1 session for multiple users)
-            # PROCESS = Each job spawns new process (multiple sessions = more billing)
-            job_executor_type=JobExecutorType.THREAD,
-            num_idle_processes=0,   # No idle processes with thread executor
-            load_threshold=0.9,     # Accept jobs up to 90% load
-            job_memory_warn_mb=0,
-            job_memory_limit_mb=0,
+            prewarm_fnc=prewarm_fnc,
+            load_fnc=load_fnc,
+            load_threshold=0.9,  # Accept jobs when load < 90%
         )
     )

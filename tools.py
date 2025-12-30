@@ -1,7 +1,8 @@
 import logging
+import asyncio
 from livekit.agents import function_tool, RunContext
 import requests
-from langchain_community.tools import DuckDuckGoSearchRun
+from ddgs import DDGS
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart  
@@ -36,8 +37,18 @@ async def search_web(
     Search the web using DuckDuckGo.
     """
     try:
-        results = DuckDuckGoSearchRun().run(tool_input=query)
-        logging.info(f"Search results for '{query}': {results}")
+        # Run synchronous search in a separate thread to avoid blocking the event loop
+        loop = asyncio.get_running_loop()
+        
+        def run_search():
+            with DDGS() as ddgs:
+                # Get top 5 results
+                results = list(ddgs.text(query, max_results=5))
+                return str(results)
+
+        results = await loop.run_in_executor(None, run_search)
+        
+        logging.info(f"Search results for '{query}': {results[:200]}...")
         return results
     except Exception as e:
         logging.error(f"Error searching the web for '{query}': {e}")

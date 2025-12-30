@@ -33,7 +33,7 @@ class Assistant(Agent):
         super().__init__(
             instructions=AGENT_INSTRUCTION,
             llm=google.beta.realtime.RealtimeModel(
-                model="models/gemini-2.5-flash-native-audio-preview-12-2025cd",
+                model="models/gemini-2.5-flash-native-audio-preview-12-2025",
                 voice="Zephyr",  # Female Hindi voice with Indian accent - perfect for Gyanika
                 temperature=0.8,  # Balanced temperature for educational responses
             ),

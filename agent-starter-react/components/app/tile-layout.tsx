@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Track } from 'livekit-client';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  BarVisualizer,
   type TrackReference,
   VideoTrack,
   useLocalParticipant,
@@ -10,6 +9,7 @@ import {
   useVoiceAssistant,
 } from '@livekit/components-react';
 import { cn } from '@/lib/utils';
+import { AudioReactiveParticleSphere } from './audio-reactive-particle-sphere';
 
 const MotionContainer = motion.create('div');
 
@@ -106,7 +106,7 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
           >
             <AnimatePresence mode="popLayout">
               {!isAvatar && (
-                // Audio Agent - Themed glass panel
+                // Audio Agent - Particle Sphere Visualizer
                 <MotionContainer
                   key="agent"
                   layoutId="agent"
@@ -116,35 +116,22 @@ export function TileLayout({ chatOpen }: TileLayoutProps) {
                   }}
                   animate={{
                     opacity: 1,
-                    scale: chatOpen ? 1 : 4,
+                    scale: chatOpen ? 1 : 1.5,
                   }}
                   transition={{
                     ...ANIMATION_TRANSITION,
                     delay: animationDelay,
                   }}
                   className={cn(
-                    'aspect-square h-[90px] rounded-2xl transition-all duration-300',
-                    'border border-cyan-500/30 bg-cyan-950/40 backdrop-blur-xl',
-                    'shadow-lg shadow-cyan-500/10',
-                    chatOpen && 'border-cyan-400/50 shadow-xl shadow-cyan-500/20'
+                    'flex items-center justify-center transition-all duration-300',
+                    chatOpen ? 'size-[120px]' : 'size-[200px]'
                   )}
                 >
-                  <BarVisualizer
-                    barCount={5}
+                  <AudioReactiveParticleSphere
                     state={agentState}
-                    options={{ minHeight: 5 }}
                     trackRef={agentAudioTrack}
-                    className={cn('flex h-full items-center justify-center gap-2')}
-                  >
-                    <span
-                      className={cn([
-                        'min-h-3 w-3 rounded-full bg-cyan-700/50',
-                        'origin-center transition-all duration-200 ease-out',
-                        'data-[lk-highlighted=true]:bg-cyan-400 data-[lk-highlighted=true]:shadow-lg data-[lk-highlighted=true]:shadow-cyan-400/50',
-                        'data-[lk-muted=true]:bg-cyan-900/50',
-                      ])}
-                    />
-                  </BarVisualizer>
+                    size={chatOpen ? 120 : 200}
+                  />
                 </MotionContainer>
               )}
 

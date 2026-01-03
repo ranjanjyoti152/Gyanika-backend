@@ -40,6 +40,8 @@ class PostgresMemory:
         self.user_name = user_name or user_id
         self.current_conversation_id = None
         self.short_term_memory: List[Dict] = []
+        self._cached_memories = None  # Cache to avoid repeated DB calls
+        self._cache_timestamp = None
         
         # Initialize - ensure user exists and start conversation
         self._ensure_user_exists()
@@ -154,13 +156,16 @@ class PostgresMemory:
             "timestamp": datetime.now().isoformat()
         })
         
-        # Keep only last 10 turns in short-term
-        if len(self.short_term_memory) > 10:
-            self.short_term_memory = self.short_term_memory[-10:]
+        # Keep only last 5 turns in short-term (reduced from 10)
+        if len(self.short_term_memory) > 5:
+            self.short_term_memory = self.short_term_memory[-5:]
         
         # Save to PostgreSQL
         self.add_message("user", user_msg)
         self.add_message("assistant", agent_msg)
+        
+        # Clear cache when new messages added
+        self._cached_memories = None
         
         logger.info(f"💾 Conversation saved to PostgreSQL for {self.user_name}")
     
@@ -186,8 +191,12 @@ class PostgresMemory:
         finally:
             conn.close()
     
-    def recall_memories(self, query: str = None, limit: int = 50) -> str:
-        """Recall past conversations for this user"""
+    def recall_memories(self, query: str = None, limit: int = 20) -> str:
+        """Recall past conversations for this user - OPTIMIZED with caching"""
+        # Return cached memories if available (cache for entire session)
+        if self._cached_memories is not None:
+            return self._cached_memories
+        
         conn = get_db_connection()
         if not conn:
             logger.error("❌ No database connection for recall")
@@ -199,7 +208,7 @@ class PostgresMemory:
             
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # First, let's see how many past conversations exist
+                # Get count (for logging only)
                 cur.execute("""
                     SELECT COUNT(*) as cnt FROM conversations WHERE user_id = %s
                 """, (self.db_user_id,))
@@ -207,7 +216,7 @@ class PostgresMemory:
                 total_convs = count_result['cnt'] if count_result else 0
                 logger.info(f"📊 Total conversations for user {self.db_user_id}: {total_convs}")
                 
-                # Get all past messages for this user (from all conversations except current)
+                # Get past messages - REDUCED from 100 to 30 for performance
                 current_conv_id = self.current_conversation_id or '00000000-0000-0000-0000-000000000000'
                 
                 cur.execute("""
@@ -217,38 +226,32 @@ class PostgresMemory:
                     WHERE c.user_id = %s
                     AND c.id != %s
                     ORDER BY m.created_at DESC
-                    LIMIT 100
+                    LIMIT 30
                 """, (self.db_user_id, current_conv_id))
                 
                 past_messages = cur.fetchall()
                 
                 if not past_messages:
                     logger.info(f"🆕 No past messages found for user {self.user_name}")
+                    self._cached_memories = ""
                     return ""
                 
                 logger.info(f"🧠 Found {len(past_messages)} past messages for {self.user_name}")
                 
-                # Format memories - group by date
-                memory_text = f"## Past Conversations with {self.user_name}\n\n"
-                memory_text += f"You have talked with {self.user_name} before. Here are the key points from past sessions:\n\n"
+                # Format memories - REDUCED, keep it brief
+                memory_text = f"## Brief History with {self.user_name}\n\n"
                 
-                # Reverse to show oldest first
-                past_messages = list(reversed(past_messages))
+                # Reverse to show oldest first, take only last 10 messages
+                past_messages = list(reversed(past_messages))[-10:]
                 
-                current_date = None
-                for msg in past_messages[-30:]:  # Last 30 messages
-                    msg_date = msg['session_start'].strftime("%Y-%m-%d") if msg['session_start'] else "Unknown"
-                    
-                    if msg_date != current_date:
-                        current_date = msg_date
-                        memory_text += f"\n### Session on {msg_date}\n"
-                    
+                for msg in past_messages:
                     role = "User" if msg['role'] == 'user' else "Gyanika"
-                    content = msg['content'][:300] + "..." if len(msg['content']) > 300 else msg['content']
+                    # Truncate content more aggressively
+                    content = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
                     memory_text += f"- **{role}**: {content}\n"
                 
-                memory_text += "\n---\nUse this context to provide personalized responses. Reference past topics when relevant.\n"
-                
+                # Cache the result
+                self._cached_memories = memory_text
                 return memory_text
                 
         except Exception as e:
@@ -315,40 +318,25 @@ class PostgresMemory:
             conn.close()
     
     def get_memory_context_prompt(self, current_query: str = None) -> str:
-        """Generate memory context for the agent's prompt"""
-        # Get recent short-term memory
+        """Generate memory context for the agent's prompt - OPTIMIZED"""
+        # Get recent short-term memory (last 3 turns only)
         short_term = ""
         if self.short_term_memory:
-            short_term = "## Recent Conversation (Current Session)\n"
-            for turn in self.short_term_memory[-5:]:
-                short_term += f"- User: {turn['user'][:150]}...\n" if len(turn['user']) > 150 else f"- User: {turn['user']}\n"
-                short_term += f"- Gyanika: {turn['agent'][:150]}...\n\n" if len(turn['agent']) > 150 else f"- Gyanika: {turn['agent']}\n\n"
+            short_term = "## Recent (Current Session)\n"
+            for turn in self.short_term_memory[-3:]:
+                user_text = turn['user'][:80] + "..." if len(turn['user']) > 80 else turn['user']
+                agent_text = turn['agent'][:80] + "..." if len(turn['agent']) > 80 else turn['agent']
+                short_term += f"- User: {user_text}\n- Gyanika: {agent_text}\n"
         
-        # Get past memories
+        # Get past memories (cached)
         past_memories = self.recall_memories(current_query)
         
-        # Get learning progress
-        progress_text = ""
-        progress = self.get_learning_progress()
-        if progress:
-            progress_text = "## Learning Progress\n"
-            for p in progress[:5]:
-                progress_text += f"- {p['subject']}/{p['topic']}: {p['proficiency_level']}% proficiency\n"
+        # Skip learning progress for performance (can add back later)
         
-        # Combine all context
-        context = f"""
-# Memory Context for {self.user_name}
-
-{short_term}
-
-{past_memories}
-
-{progress_text}
-
-Use this context to provide personalized responses. Reference past conversations when relevant.
-Remember the user's learning progress and adapt explanations accordingly.
-"""
-        return context.strip()
+        # Combine - keep it minimal
+        if past_memories or short_term:
+            return f"# Memory for {self.user_name}\n{short_term}\n{past_memories}".strip()
+        return ""
     
     def end_conversation(self, summary: str = None, topic: str = None):
         """End the current conversation and save summary"""
